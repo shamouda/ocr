@@ -441,6 +441,10 @@ static u8 scheduleTask(ocrTask_t *self) {
     PD_MSG_STACK(msg);
     getCurrentEnv(&pd, NULL, NULL, &msg);
 
+#ifdef OCR_MONITOR_SCHEDULER
+    OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_SCHEDULER, OCR_ACTION_SCHED_MSG_SEND, self->guid);
+#endif
+
 #define PD_MSG (&msg)
 #define PD_TYPE PD_MSG_SCHED_NOTIFY
     msg.type = PD_MSG_SCHED_NOTIFY | PD_MSG_REQUEST;
@@ -811,7 +815,6 @@ u8 newTaskHc(ocrTaskFactory_t* factory, ocrFatGuid_t * edtGuid, ocrFatGuid_t edt
     }
 #endif /* OCR_ENABLE_STATISTICS */
     DPRINTF(DEBUG_LVL_INFO, "Create "GUIDF" depc %"PRId32" outputEvent "GUIDF"\n", GUIDA(base->guid), depc, GUIDA(outputEventPtr?outputEventPtr->guid:NULL_GUID));
-
     edtGuid->guid = base->guid;
     edtGuid->metaDataPtr = base;
     OCR_TOOL_TRACE(true, OCR_TRACE_TYPE_EDT, OCR_ACTION_CREATE, traceTaskCreate, edtGuid->guid);
@@ -868,7 +871,7 @@ u8 satisfyTaskHcWithMode(ocrTask_t * base, ocrFatGuid_t data, u32 slot, ocrDbAcc
     self->signalers[slot].mode = mode;
     hal_fence();
     u32 oldValue = hal_xadd32(&(self->slotSatisfiedCount), 1);
-    
+
 #ifdef REG_ASYNC_SGL_DEBUG
     DPRINTF(DEBUG_LVL_WARN, "Satisfied task oldValue is %d and depc is %d \n", (int) oldValue, (int) base->depc);
 #endif

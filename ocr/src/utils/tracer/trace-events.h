@@ -19,6 +19,10 @@ const char *obj_type[] = {
     "EVENT",
     "MESSAGE",
     "DATABLOCK"
+    "DATABLOCK",
+    "WORKER",
+    "SCHEDULER",
+    "DEQUE"
 };
 
 //Strings for traced OCR events
@@ -26,6 +30,7 @@ const char *action_type[] = {
     "CREATE",
     "DESTROY",
     "RUNNABLE",
+    "SCHEDULED",
     "ADD_DEP",
     "SATISFY",
     "EXECUTE",
@@ -33,6 +38,16 @@ const char *action_type[] = {
     "DATA_ACQUIRE",
     "DATA_RELEASE",
     "END_TO_END",
+    "WORK_REQUEST",
+    "BEGIN_WORK_STEAL",
+    "WORK_TAKEN",
+    "WORK_AVAIL",
+    "WORK_SPIN",
+    "WORK_DEPLETED",
+    "SCHED_MSG_SEND",
+    "SCHED_MSG_RCV",
+    "SCHED_INVOKE",
+    "SCHED_HEUR_INVOKE"
     "ACTION_MAX"
 };
 

@@ -42,6 +42,7 @@
 /******************************************************/
 
 static void hcWorkShift(ocrWorker_t * worker) {
+
     START_PROFILE(wo_hc_workShift);
     ocrPolicyDomain_t * pd;
     PD_MSG_STACK(msg);
@@ -56,12 +57,20 @@ static void hcWorkShift(ocrWorker_t * worker) {
         START_PROFILE(wo_hc_getWork);
 #define PD_MSG (&msg)
 #define PD_TYPE PD_MSG_SCHED_GET_WORK
-        msg.type = PD_MSG_SCHED_GET_WORK | PD_MSG_REQUEST | PD_MSG_REQ_RESPONSE;
-        PD_MSG_FIELD_IO(schedArgs).kind = OCR_SCHED_WORK_EDT_USER;
-        PD_MSG_FIELD_IO(schedArgs).OCR_SCHED_ARG_FIELD(OCR_SCHED_WORK_EDT_USER).edt.guid = NULL_GUID;
-        PD_MSG_FIELD_IO(schedArgs).OCR_SCHED_ARG_FIELD(OCR_SCHED_WORK_EDT_USER).edt.metaDataPtr = NULL;
-        retCode = pd->fcts.processMessage(pd, &msg, true);
-        EXIT_PROFILE;
+    msg.type = PD_MSG_SCHED_GET_WORK | PD_MSG_REQUEST | PD_MSG_REQ_RESPONSE;
+    PD_MSG_FIELD_IO(schedArgs).kind = OCR_SCHED_WORK_EDT_USER;
+    PD_MSG_FIELD_IO(schedArgs).OCR_SCHED_ARG_FIELD(OCR_SCHED_WORK_EDT_USER).edt.guid = NULL_GUID;
+    PD_MSG_FIELD_IO(schedArgs).OCR_SCHED_ARG_FIELD(OCR_SCHED_WORK_EDT_USER).edt.metaDataPtr = NULL;
+
+#ifdef OCR_MONITOR_SCHEDULER
+    if(!worker->isSeeking){
+        worker->isSeeking = true;
+        OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_WORKER, OCR_ACTION_WORK_REQUEST);
+    }
+#endif
+
+    retCode = pd->fcts.processMessage(pd, &msg, true);
+    EXIT_PROFILE;
     }
     if(retCode == 0) {
         // We got a response
@@ -108,6 +117,7 @@ static void hcWorkShift(ocrWorker_t * worker) {
             // Important for this to be the last
             worker->curTask = NULL;
         }
+
     } else {
         ASSERT(0); //Handle error code
     }
@@ -124,6 +134,7 @@ static void hcWorkShift(ocrWorker_t * worker) {
         hal_xadd32((u32*)&self->pqrFlags.pauseCounter, -1);
     }
 #endif
+
     RETURN_PROFILE();
 }
 

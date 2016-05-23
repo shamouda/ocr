@@ -101,6 +101,7 @@ u8 deqSchedulerObjectInsert(ocrSchedulerObjectFactory_t *fact, ocrSchedulerObjec
     //Sanity check - Ensure work is local
     ASSERT(element->guid.metaDataPtr != NULL);
     deq->pushAtTail(deq, (void *)(element->guid.metaDataPtr), 0);
+
     return 0;
 }
 
@@ -144,7 +145,6 @@ u8 deqSchedulerObjectRemove(ocrSchedulerObjectFactory_t *fact, ocrSchedulerObjec
             ASSERT(0);
             return OCR_ENOTSUP;
         }
-
         if (ocrGuidIsNull(retGuid))
             break;
 

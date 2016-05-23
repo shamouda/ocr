@@ -80,5 +80,8 @@ void initializeWorkerOcr(ocrWorkerFactory_t * factory, ocrWorker_t * self, ocrPa
     self->callback = NULL;
     self->callbackArg = 0ULL;
     self->id = ((paramListWorkerInst_t *) perInstance)->workerId;
+#ifdef OCR_MONITOR_SCHEDULER
+    self->isSeeking = false;
+#endif
 }
 

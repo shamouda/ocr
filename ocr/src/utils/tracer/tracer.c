@@ -7,7 +7,6 @@
 #include "utils/ocr-utils.h"
 #include "ocr-types.h"
 #include "utils/tracer/tracer.h"
-#include "utils/deque.h"
 #include "worker/hc/hc-worker.h"
 
 
@@ -35,7 +34,7 @@ bool isSystem(ocrPolicyDomain_t *pd){
 bool isSupportedTraceType(bool evtType, ocrTraceType_t ttype, ocrTraceAction_t atype){
     //Hacky sanity check to ensure va_arg got valid trace info if provided.
     //return true if supported (list will expand as more trace types become needed/supported)
-    return ((ttype >= OCR_TRACE_TYPE_EDT && ttype <= OCR_TRACE_TYPE_DATABLOCK) &&
+    return ((ttype >= OCR_TRACE_TYPE_EDT && ttype < OCR_TRACE_TYPE_MAX) &&
             (atype >= OCR_ACTION_CREATE  && atype < OCR_ACTION_MAX) &&
             (evtType == true || evtType == false));
 }
@@ -75,6 +74,18 @@ void populateTraceObject(u64 location, bool evtType, ocrTraceType_t objType, ocr
                 ocrGuid_t taskGuid = va_arg(ap, ocrGuid_t);
                 //Callback
                 traceFunc(location, evtType, objType, actionType, workerId, timestamp, parent, taskGuid);
+                break;
+            }
+            case OCR_ACTION_SCHEDULED:
+            {
+                //Handle trace object manually.  No callback for this trace event.
+                INIT_TRACE_OBJECT();
+                ocrGuid_t curTask = va_arg(ap, ocrGuid_t);
+                deque_t *deq = va_arg(ap, deque_t *);
+
+                TRACE_FIELD(TASK, taskScheduled, tr, taskGuid) = curTask;
+                TRACE_FIELD(TASK, taskScheduled, tr, deq) = deq;
+                PUSH_TO_TRACE_DEQUE();
                 break;
             }
             case OCR_ACTION_SATISFY:
@@ -256,6 +267,81 @@ void populateTraceObject(u64 location, bool evtType, ocrTraceType_t objType, ocr
                 break;
         }
         break;
+
+    case OCR_TRACE_TYPE_WORKER:
+
+        switch(actionType){
+
+            case OCR_ACTION_WORK_REQUEST:
+            {
+                //Handle trace object manually.  No callback for this trace event.
+                INIT_TRACE_OBJECT();
+                TRACE_FIELD(EXECUTION_UNIT, exeWorkRequest, tr, placeHolder) = NULL;
+                PUSH_TO_TRACE_DEQUE();
+                break;
+            }
+            case OCR_ACTION_WORK_TAKEN:
+            {
+                //Handle trace object manually.  No callback for this trace event.
+                INIT_TRACE_OBJECT();
+                ocrGuid_t curTask = va_arg(ap, ocrGuid_t);
+                deque_t *deq = va_arg(ap, deque_t *);
+
+                TRACE_FIELD(EXECUTION_UNIT, exeWorkTaken, tr, foundGuid) = curTask;
+                TRACE_FIELD(EXECUTION_UNIT, exeWorkTaken, tr, deq) = deq;
+                PUSH_TO_TRACE_DEQUE();
+                break;
+            }
+
+            default:
+                break;
+
+        }
+
+        break;
+
+    case OCR_TRACE_TYPE_SCHEDULER:
+
+        switch(actionType){
+
+            case OCR_ACTION_SCHED_MSG_SEND:
+            {
+                //Handle trace object manually.  No callback for this trace event.
+                INIT_TRACE_OBJECT();
+                ocrGuid_t curTask = va_arg(ap, ocrGuid_t);
+                TRACE_FIELD(SCHEDULER, schedMsgSend, tr, taskGuid) = curTask;
+                PUSH_TO_TRACE_DEQUE();
+            }
+                break;
+
+            case OCR_ACTION_SCHED_MSG_RCV:
+            {
+                //Handle trace object manually.  No callback for this trace event.
+                INIT_TRACE_OBJECT();
+                ocrGuid_t curTask = va_arg(ap, ocrGuid_t);
+                TRACE_FIELD(SCHEDULER, schedMsgRcv, tr, taskGuid) = curTask;
+                PUSH_TO_TRACE_DEQUE();
+            }
+                break;
+
+            case OCR_ACTION_SCHED_INVOKE:
+            {
+                //Handle trace object manually.  No callback for this trace event.
+                INIT_TRACE_OBJECT();
+                ocrGuid_t curTask = va_arg(ap, ocrGuid_t);
+                TRACE_FIELD(SCHEDULER, schedInvoke, tr, taskGuid) = curTask;
+                PUSH_TO_TRACE_DEQUE();
+            }
+                break;
+
+            default:
+                break;
+        }
+        break;
+
+    default:
+        break;
+
     }
 
 }

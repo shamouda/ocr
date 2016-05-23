@@ -125,6 +125,11 @@ typedef struct _ocrWorker_t {
     struct _ocrTask_t * volatile curTask; /**< Currently executing task */
 
     ocrWorkerFcts_t fcts;
+
+#ifdef OCR_MONITOR_SCHEDULER
+    bool isSeeking;
+#endif
+
 } ocrWorker_t;
 
 

@@ -173,6 +173,10 @@ endif
 # Requires Tracing (-DOCR_TRACE_BINARY)
 # CFLAGS += -DOCR_MONITOR_NETWORK -DOCR_TRACE_BINARY
 
+# Enable trace events for monitoring scheduling overhead activity
+# Requires OCR_TRACE_BINARY
+# CFLAGS += -DOCR_MONITOR_SCHEDULER -DOCR_TRACE_BINARY
+
 ####################################################
 # Experimental flags
 ####################################################

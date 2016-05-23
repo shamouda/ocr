@@ -88,6 +88,11 @@ typedef struct {
                     ocrGuid_t taskGuid;             /* GUID of runnable task */
                 }taskReadyToRun;
 
+                 struct{
+                    ocrGuid_t taskGuid;             /* GUID of scheduled task */
+                    deque_t *deq;
+                }taskScheduled;
+
                 struct{
                     u32 whyDelay;                   /* TODO: define this... may not be needed/useful */
                     ocrGuid_t taskGuid;             /* GUID of task executing */
@@ -191,9 +196,36 @@ typedef struct {
                     void *placeHolder;              /* TODO: Define values.  May not be needed */
                 }exeUnitDestroy;
 
+                struct{
+                    void *placeHolder;              /* TODO: Define values.  May not be needed*/
+                }exeWorkRequest;
+
+                struct{
+                    ocrGuid_t foundGuid;            /* GUID of EDT popped from deque for execution*/
+                    deque_t *deq;
+                }exeWorkTaken;
+
+
             }action;
 
         } TRACE_TYPE_NAME(EXECUTION_UNIT);
+
+        struct{ /* OCR scheduler module */
+            union{
+                struct{
+                    ocrGuid_t taskGuid;             /* GUID of task en route to being scheduled */
+                }schedMsgSend;
+
+                struct{
+                    ocrGuid_t taskGuid;             /* GUID of task en route to being scheduled */
+                }schedMsgRcv;
+
+                struct{
+                    ocrGuid_t taskGuid;             /* GUID of task en route to being scheduled */
+                }schedInvoke;
+
+            }action;
+        } TRACE_TYPE_NAME(SCHEDULER);
 
         struct{ /* User-facing custom marker */
             union{

@@ -249,6 +249,7 @@ u8 commonSchedulerNotifyInvoke(ocrScheduler_t *self, ocrSchedulerOpArgs_t *opArg
     // Dispatch notify to the correct scheduler
     ocrSchedulerHeuristic_t * schedulerHeuristic;
     ocrSchedulerOpNotifyArgs_t * notifyArgs = (ocrSchedulerOpNotifyArgs_t *) opArgs;
+
     switch(notifyArgs->kind) {
     case OCR_SCHED_NOTIFY_PRE_PROCESS_MSG: {
         //BUG #917
@@ -282,6 +283,12 @@ u8 commonSchedulerNotifyInvoke(ocrScheduler_t *self, ocrSchedulerOpArgs_t *opArg
         schedulerHeuristic = dself->schedulerHeuristics[COMP_HEURISTIC_ID];
     }
     }
+#ifdef OCR_MONITOR_SCHEDULER
+    if(notifyArgs->kind == OCR_SCHED_NOTIFY_EDT_READY){
+        ocrGuid_t taskGuid = notifyArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid.guid;
+        OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_SCHEDULER, OCR_ACTION_SCHED_INVOKE, taskGuid);
+    }
+#endif
     return schedulerHeuristic->fcts.op[OCR_SCHEDULER_HEURISTIC_OP_NOTIFY].invoke(schedulerHeuristic, opArgs, hints);
 }
 

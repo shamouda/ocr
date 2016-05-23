@@ -152,6 +152,7 @@ static u8 hcSchedulerHeuristicWorkEdtUserInvoke(ocrSchedulerHeuristic_t *self, o
 
     //If pop fails, then try to steal from other deques
     if (ocrGuidIsNull(edtObj.guid.guid)) {
+
         //First try to steal from the last deque that was visited (probably had a successful steal)
         ocrSchedulerObject_t *stealSchedulerObject = ((ocrSchedulerHeuristicContextHc_t*)self->contexts[hcContext->stealSchedulerObjectIndex])->mySchedulerObject;
         ASSERT(stealSchedulerObject);
@@ -165,14 +166,22 @@ static u8 hcSchedulerHeuristicWorkEdtUserInvoke(ocrSchedulerHeuristic_t *self, o
             for (i = 1; ocrGuidIsNull(edtObj.guid.guid) && i < self->contextCount; i++) {
                 hcContext->stealSchedulerObjectIndex = (context->id + i) % self->contextCount; //simple round robin stealing
                 stealSchedulerObject = ((ocrSchedulerHeuristicContextHc_t*)self->contexts[hcContext->stealSchedulerObjectIndex])->mySchedulerObject;
-                if (stealSchedulerObject)
+                if (stealSchedulerObject){
                     retVal = fact->fcts.remove(fact, stealSchedulerObject, OCR_SCHEDULER_OBJECT_EDT, 1, &edtObj, NULL, SCHEDULER_OBJECT_REMOVE_HEAD);
+                }
             }
         }
     }
 
-    if (!(ocrGuidIsNull(edtObj.guid.guid)))
+    if (!(ocrGuidIsNull(edtObj.guid.guid))){
         taskArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_WORK_EDT_USER).edt = edtObj.guid;
+#ifdef OCR_MONITOR_SCHEDULER
+        OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_WORKER, OCR_ACTION_WORK_TAKEN, edtObj.guid.guid, schedObj);
+        ocrWorker_t *wrkr;
+        getCurrentEnv(NULL, &wrkr, NULL, NULL);
+        wrkr->isSeeking = false;
+#endif
+    }
 
     return retVal;
 }
@@ -205,6 +214,10 @@ static u8 hcSchedulerHeuristicNotifyEdtReadyInvoke(ocrSchedulerHeuristic_t *self
     edtObj.guid = notifyArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid;
     edtObj.kind = OCR_SCHEDULER_OBJECT_EDT;
     ocrSchedulerObjectFactory_t *fact = self->scheduler->pd->schedulerObjectFactories[schedObj->fctId];
+#ifdef OCR_MONITOR_SCHEDULER
+    ocrGuid_t taskGuid = notifyArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid.guid;
+    OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_EDT, OCR_ACTION_SCHEDULED, taskGuid, schedObj);
+#endif
     return fact->fcts.insert(fact, schedObj, &edtObj, NULL, (SCHEDULER_OBJECT_INSERT_AFTER | SCHEDULER_OBJECT_INSERT_POSITION_TAIL));
 }
 

@@ -183,7 +183,13 @@ static u8 pcSchedulerHeuristicWorkEdtUserInvoke(ocrSchedulerHeuristic_t *self, o
         }
     }
 
-    if (edtObj.guid.guid != NULL_GUID) {
+    if (!(ocrGuidIsNull(edtObj.guid.guid))) {
+#ifdef OCR_MONITOR_SCHEDULER
+        OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_WORKER, OCR_ACTION_WORK_TAKEN, edtObj.guid.guid, schedObj);
+        ocrWorker_t *wrkr;
+        getCurrentEnv(NULL, &wrkr, NULL, NULL);
+        wrkr->isSeeking = false;
+#endif
         if (edtObj.guid.metaDataPtr == NULL)
             fact->pd->guidProviders[0]->fcts.getVal(fact->pd->guidProviders[0], edtObj.guid.guid, (u64*)(&(edtObj.guid.metaDataPtr)), NULL);
         ASSERT(edtObj.guid.metaDataPtr);
@@ -225,6 +231,10 @@ static u8 pcSchedulerHeuristicNotifyEdtReadyInvoke(ocrSchedulerHeuristic_t *self
     edtObj.guid = notifyArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid;
     edtObj.kind = OCR_SCHEDULER_OBJECT_EDT;
     ocrSchedulerObjectFactory_t *fact = self->scheduler->pd->schedulerObjectFactories[schedObj->fctId];
+#ifdef OCR_MONITOR_SCHEDULER
+    ocrGuid_t taskGuid = notifyArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid.guid;
+    OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_EDT, OCR_ACTION_SCHEDULED, taskGuid, schedObj);
+#endif
     return fact->fcts.insert(fact, schedObj, &edtObj, 0);
 }
 

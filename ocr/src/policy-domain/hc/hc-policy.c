@@ -1660,6 +1660,12 @@ u8 hcPolicyDomainProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8
 #define PD_MSG msg
 #define PD_TYPE PD_MSG_SCHED_NOTIFY
         ocrSchedulerOpNotifyArgs_t *notifyArgs = &PD_MSG_FIELD_IO(schedArgs);
+#ifdef OCR_MONITOR_SCHEDULER
+        if(PD_MSG_FIELD_IO(schedArgs).kind == OCR_SCHED_NOTIFY_EDT_READY){
+            ocrGuid_t taskGuid = PD_MSG_FIELD_IO(schedArgs).OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid.guid;
+            OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_SCHEDULER, OCR_ACTION_SCHED_MSG_RCV, taskGuid);
+        }
+#endif
         notifyArgs->base.location = msg->srcLocation;
         PD_MSG_FIELD_O(returnDetail) =
             self->schedulers[0]->fcts.op[OCR_SCHEDULER_OP_NOTIFY].invoke(

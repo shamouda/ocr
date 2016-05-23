@@ -310,7 +310,6 @@ void lockedDequePushHead(deque_t* self, void* entry, u8 doTry) {
     // Not full so I must be able to write
     u32 n;
     if (head == tail) { // empty
-        // PRINTF("PUSH_HEAD empty\n");
         ++(self->tail);
         n = head % INIT_DEQUE_CAPACITY;
     } else if (head == 0) { // no space at head, need to shift
@@ -318,7 +317,6 @@ void lockedDequePushHead(deque_t* self, void* entry, u8 doTry) {
         self->tail++;
         n = 0;
     } else { // ok to just prepend
-        // PRINTF("PUSH_HEAD prepend\n");
         --(self->head);
         n = (head-1) % INIT_DEQUE_CAPACITY;
     }

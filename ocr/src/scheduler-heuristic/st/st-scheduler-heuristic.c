@@ -1506,9 +1506,16 @@ static u8 stSchedulerHeuristicWorkEdtUserInvoke(ocrSchedulerHeuristic_t *self, o
         }
     }
 
-    if(!(ocrGuidIsNull(edtObj.guid.guid)))
+    if(!(ocrGuidIsNull(edtObj.guid.guid))){
         taskArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_WORK_EDT_USER).edt = edtObj.guid;
-
+        //Add same schedObj determine flag
+#ifdef OCR_MONITOR_SCHEDULER
+        OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_WORKER, OCR_ACTION_WORK_TAKEN, edtObj.guid.guid, schedObj);
+        ocrWorker_t *wrkr;
+        getCurrentEnv(NULL, &wrkr, NULL, NULL);
+        wrkr->isSeeking = false;
+#endif
+    }
     return retVal;
 }
 
@@ -1646,6 +1653,10 @@ static u8 stSchedulerHeuristicNotifyEdtReadyInvoke(ocrSchedulerHeuristic_t *self
     edtObj.guid = *fguid;
     edtObj.kind = OCR_SCHEDULER_OBJECT_EDT;
     ocrSchedulerObjectFactory_t *fact = self->scheduler->pd->schedulerObjectFactories[schedObj->fctId];
+#ifdef OCR_MONITOR_SCHEDULER
+    ocrGuid_t taskGuid = notifyArgs->OCR_SCHED_ARG_FIELD(OCR_SCHED_NOTIFY_EDT_READY).guid.guid;
+    OCR_TOOL_TRACE(false, OCR_TRACE_TYPE_EDT, OCR_ACTION_SCHEDULED, taskGuid, schedObj);
+#endif
     return fact->fcts.insert(fact, schedObj, &edtObj, NULL, (SCHEDULER_OBJECT_INSERT_AFTER | SCHEDULER_OBJECT_INSERT_POSITION_TAIL));
 }
 

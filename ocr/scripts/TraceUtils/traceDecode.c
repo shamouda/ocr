@@ -28,7 +28,7 @@ int main(int argc, char *argv[]){
 
     char *fname = argv[1];
 
-    /*TODO bring back processRequestEdt seperation with app binary
+    /*TODO Keep this around for now.  Will go away once processRequestEdts go away
     char *binaryPath;
     //If binary path provided, store
     if(argc == 3){
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]){
 
     int lineCount = 0;
 
-    /*TODO bring back processRequestEdt seperation with app binary*
+    /*TODO Keep this around for now.  Will go away once processRequestEdts go away
     if(binaryPath != ""){
         char *sysCommand = malloc(SYS_CALL_COMMAND_LENGTH);
         char path[BIN_PATH_LENGTH];
@@ -57,11 +57,9 @@ int main(int argc, char *argv[]){
         if(fp == NULL){
             printf("Error: Unable to open application binary, reverting to default options\n");
         }else{
-
             lineCount = getLineCount(fp);
             pclose(fp);
         }
-
     }
 
 
@@ -88,7 +86,6 @@ int main(int argc, char *argv[]){
             translateObject(trace, lineCount, fctPtrs);
         }
         fclose(f);
-
     }
     return 0;
 }
@@ -97,11 +94,11 @@ void genericPrint(bool evtType, ocrTraceType_t ttype, ocrTraceAction_t action,
                   u64 location, u64 workerId, u64 timestamp, ocrGuid_t self, ocrGuid_t parent){
 
     if(!(ocrGuidIsNull(parent))){
-        printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: %s | ACTION: %s | GUID: "GUIDF" | PARENT: "GUIDF"\n",
+        printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: %s | ACTION: %s | GUID: "GUIDF" | PARENT: "GUIDF"\n",
                 evt_type[evtType], location, workerId, timestamp, obj_type[ttype-IDX_OFFSET], action_type[action], GUIDA(self), GUIDA(parent));
     }else{
 
-        printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: %s | ACTION: %s | GUID: "GUIDF"\n",
+        printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: %s | ACTION: %s | GUID: "GUIDF"\n",
                 evt_type[evtType], location, workerId, timestamp, obj_type[ttype-IDX_OFFSET], action_type[action], GUIDA(self));
     }
     return;
@@ -140,11 +137,19 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
                 genericPrint(evtType, ttype, action, location, workerId, timestamp, taskGuid, NULL_GUID);
                 break;
             }
+            case OCR_ACTION_SCHEDULED:
+            {
+                ocrGuid_t curTask = TRACE_FIELD(TASK, taskScheduled, trace, taskGuid);
+                deque_t *deq = TRACE_FIELD(TASK, taskScheduled, trace, deq);
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: SCHEDULED | GUID: "GUIDF" | DEQUE: %p\n",
+                        evt_type[evtType], location, workerId, timestamp, GUIDA(curTask), deq);
+                break;
+            }
             case OCR_ACTION_SATISFY:
             {
                 ocrGuid_t taskGuid = TRACE_FIELD(TASK, taskDepSatisfy, trace, taskGuid);
                 ocrGuid_t satisfyee = TRACE_FIELD(TASK, taskDepSatisfy, trace, satisfyee);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EDT | ACTION: DEP_SATISFY | GUID: "GUIDF" | SATISFYEE_GUID: "GUIDF"\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: DEP_SATISFY | GUID: "GUIDF" | SATISFYEE_GUID: "GUIDF"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(taskGuid), GUIDA(satisfyee));
                 break;
             }
@@ -152,7 +157,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
             {
                 ocrGuid_t src = TRACE_FIELD(TASK, taskDepReady, trace, src);
                 ocrGuid_t dest = TRACE_FIELD(TASK, taskDepReady, trace, dest);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EDT | ACTION: ADD_DEP | SRC: "GUIDF" | DEST: "GUIDF"\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: ADD_DEP | SRC: "GUIDF" | DEST: "GUIDF"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(src), GUIDA(dest));
                 break;
             }
@@ -164,15 +169,14 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
                 if(fctPtrs != NULL){
 
                     if(!(fctPtrExists((long)funcPtr, lineCount, fctPtrs))){
-                        printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EDT | ACTION: EXECUTE | GUID "GUIDF" | FUNC_PTR: <processRequestEdt>\n",
+                        printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: EXECUTE | GUID "GUIDF" | FUNC_PTR: <processRequestEdt>\n",
                                 evt_type[0], location, workerId, timestamp, GUIDA(taskGuid));
                         break;
                     }
                 }
 
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EDT | ACTION: EXECUTE | GUID: "GUIDF" | FUNC_PTR: 0x%lx\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: EXECUTE | GUID: "GUIDF" | FUNC_PTR: 0x%"PRIx64"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(taskGuid), (u64)funcPtr);
-
                 break;
             }
             case OCR_ACTION_FINISH:
@@ -186,7 +190,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
                 ocrGuid_t taskGuid = TRACE_FIELD(TASK, taskDataAcquire, trace, taskGuid);
                 ocrGuid_t dbGuid = TRACE_FIELD(TASK, taskDataAcquire, trace, dbGuid);
                 u64 dbSize = TRACE_FIELD(TASK, taskDataAcquire, trace, dbSize);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EDT | ACTION: DB_ACQUIRE | GUID: "GUIDF" | DB_GUID: "GUIDF" | DB_SIZE: %lu\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: DB_ACQUIRE | GUID: "GUIDF" | DB_GUID: "GUIDF" | DB_SIZE: %"PRIu64"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(taskGuid), GUIDA(dbGuid), dbSize);
 
                 break;
@@ -197,7 +201,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
                 ocrGuid_t taskGuid = TRACE_FIELD(TASK, taskDataRelease, trace, taskGuid);
                 ocrGuid_t dbGuid = TRACE_FIELD(TASK, taskDataRelease, trace, dbGuid);
                 u64 dbSize = TRACE_FIELD(TASK, taskDataRelease, trace, dbSize);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EDT | ACTION: DB_RELEASE | GUID: "GUIDF" | DB_GUID: "GUIDF" | DB_SIZE: %lu\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EDT | ACTION: DB_RELEASE | GUID: "GUIDF" | DB_GUID: "GUIDF" | DB_SIZE: %"PRIu64"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(taskGuid), GUIDA(dbGuid), dbSize);
 
                 break;
@@ -228,7 +232,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
             {
                 ocrGuid_t eventGuid = TRACE_FIELD(EVENT, eventDepSatisfy, trace, eventGuid);
                 ocrGuid_t satisfyee = TRACE_FIELD(EVENT, eventDepSatisfy, trace, satisfyee);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EVENT | ACTION: DEP_SATISFY | GUID: "GUIDF" | SATISFYEE_GUID "GUIDF"\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EVENT | ACTION: DEP_SATISFY | GUID: "GUIDF" | SATISFYEE_GUID "GUIDF"\n",
                        evt_type[evtType], location, workerId, timestamp, GUIDA(eventGuid), GUIDA(satisfyee));
                 break;
             }
@@ -237,7 +241,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
             {
                 ocrGuid_t src = TRACE_FIELD(EVENT, eventDepAdd, trace, src);
                 ocrGuid_t dest = TRACE_FIELD(EVENT, eventDepAdd, trace, dest);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: EVENT | ACTION: ADD_DEP | SRC: "GUIDF" | DEST: "GUIDF"\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: EVENT | ACTION: ADD_DEP | SRC: "GUIDF" | DEST: "GUIDF"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(src), GUIDA(dest));
                 break;
             }
@@ -262,7 +266,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
                 u64 unMarshTime = TRACE_FIELD(MESSAGE, msgEndToEnd, trace, unMarshTime);
                 u64 type = TRACE_FIELD(MESSAGE, msgEndToEnd, trace, type);
 
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: MESSAGE | ACTION: END_TO_END | SRC: 0x%u | DEST: 0x%u | SIZE: %lu | MARSH: %lu | SEND: %lu | RCV: %lu | UMARSH: %lu | TYPE: 0x%lx\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: MESSAGE | ACTION: END_TO_END | SRC: 0x%u | DEST: 0x%u | SIZE: %"PRIu64" | MARSH: %"PRIu64" | SEND: %"PRIu64" | RCV: %"PRIu64" | UMARSH: %"PRIu64" | TYPE: 0x%"PRIx64"\n",
                         evt_type[evtType], location, workerId, timestamp, src, dst, usefulSize, marshTime, sendTime, rcvTime, unMarshTime, type);
 
 
@@ -282,7 +286,7 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
             {
                 ocrGuid_t dbGuid = TRACE_FIELD(DATA, dataCreate, trace, dbGuid);
                 u64 dbSize = TRACE_FIELD(DATA, dataCreate, trace, dbSize);
-                printf("[TRACE] U/R: %s | PD: 0x%lx | WORKER_ID: %lu | TIMESTAMP: %lu | TYPE: DATABLOCK | ACTION: CREATE | GUID: "GUIDF" | SIZE: %lu | PARENT: "GUIDF"\n",
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: DATABLOCK | ACTION: CREATE | GUID: "GUIDF" | SIZE: %"PRIu64" | PARENT: "GUIDF"\n",
                         evt_type[evtType], location, workerId, timestamp, GUIDA(dbGuid), dbSize, GUIDA(parent));
                 break;
             }
@@ -295,6 +299,68 @@ void translateObject(ocrTraceObj_t *trace, int lineCount, long *fctPtrs){
             default:
                 break;
         }
+        break;
+
+    case OCR_TRACE_TYPE_WORKER:
+
+        switch(trace->actionSwitch){
+
+            case OCR_ACTION_WORK_REQUEST:
+            {
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: WORKER | ACTION: REQUEST\n",
+                        evt_type[evtType], location, workerId, timestamp);
+                break;
+            }
+
+            case OCR_ACTION_WORK_TAKEN:
+            {
+                ocrGuid_t curTask = TRACE_FIELD(EXECUTION_UNIT, exeWorkTaken, trace, foundGuid);
+                deque_t *deq = TRACE_FIELD(EXECUTION_UNIT, exeWorkTaken, trace, deq);
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: WORKER | ACTION: TAKEN | GUID: "GUIDF" | DEQUE: %p\n",
+                        evt_type[evtType], location, workerId, timestamp, GUIDA(curTask), deq);
+                break;
+            }
+
+            default:
+                break;
+        }
+        break;
+
+    case OCR_TRACE_TYPE_SCHEDULER:
+
+        switch(trace->actionSwitch){
+
+            case OCR_ACTION_SCHED_MSG_SEND:
+            {
+                ocrGuid_t curTask = TRACE_FIELD(SCHEDULER, schedMsgSend, trace, taskGuid);
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: SCHEDULER | ACTION: MSG_SEND | GUID: "GUIDF"\n",
+                        evt_type[evtType], location, workerId, timestamp, GUIDA(curTask));
+                break;
+            }
+
+            case OCR_ACTION_SCHED_MSG_RCV:
+            {
+                ocrGuid_t curTask = TRACE_FIELD(SCHEDULER, schedMsgRcv, trace, taskGuid);
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: SCHEDULER | ACTION: MSG_RECEIVE | GUID: "GUIDF"\n",
+                        evt_type[evtType], location, workerId, timestamp, GUIDA(curTask));
+                break;
+            }
+
+            case OCR_ACTION_SCHED_INVOKE:
+            {
+                ocrGuid_t curTask = TRACE_FIELD(SCHEDULER, schedInvoke, trace, taskGuid);
+                printf("[TRACE] U/R: %s | PD: 0x%"PRIx64" | WORKER_ID: %"PRIu64" | TIMESTAMP: %"PRIu64" | TYPE: SCHEDULER | ACTION: INVOKE | GUID: "GUIDF"\n",
+                        evt_type[evtType], location, workerId, timestamp, GUIDA(curTask));
+                break;
+            }
+
+            default:
+                break;
+
+        }
+        break;
+
+    default:
         break;
     }
 }
