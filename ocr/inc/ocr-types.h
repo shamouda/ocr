@@ -483,9 +483,21 @@ typedef enum {
                                              * if so, block until it can be re-created. See
                                              * comments for #GUID_PROP_CHECK
                                              */
-#define LEGACY_PROP_NONE            ((u16)(0x0))
+
+                                                  //TODO: this sounds wrong but we need to double check with apps
+#define LEGACY_PROP_NONE            ((u16)(0x0)) /**< For ocrLegacyBlockProgress, check if the event has been
+                                                  * created. If it is local and has not been created return.
+                                                  * If it is remote ahd has not been created wait for creation.
+                                                  * In either case wait for it to be satisfied. Returns
+                                                  * immediately with OCR_EINVAL if event not created */
 #define LEGACY_PROP_WAIT_FOR_CREATE ((u16)(0x1)) /**< For ocrLegacyBlockProgress, wait for the handle to
                                                   * be created */
+#define LEGACY_PROP_WAIT_IF_CREATED ((u16)(0x2))  /**< For ocrLegacyBlockProgress, check if the event has been
+                                                  * created. If yes behaves as LEGACY_PROP_NONE, it not returns
+                                                  * immediately with OCR_EINVAL */
+#define LEGACY_PROP_CHECK           ((u16)(0x4))  /**< For ocrLegacyBlockProgress, check if the event has been
+                                                  * created. If yes check if it has been satisfied. Returns
+                                                  * immediately with OCR_EINVAL in either case */
 /**
  * @}
  */

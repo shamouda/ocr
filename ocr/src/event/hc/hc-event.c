@@ -233,7 +233,7 @@ ocrFatGuid_t getEventHc(ocrEvent_t *base) {
 #endif
     {
         ocrEventHcPersist_t *event = (ocrEventHcPersist_t*)base;
-        res.guid = (ocrGuidIsUninitialized(event->data)) ? ERROR_GUID : event->data;
+        res.guid = event->data;
         break;
     }
 #ifdef ENABLE_EXTENSION_CHANNEL_EVT
@@ -248,7 +248,7 @@ ocrFatGuid_t getEventHc(ocrEvent_t *base) {
         if ((satCount >= devt->nbSat) && (waitCount >= devt->nbDeps)) {
             res.guid = devt->satBuffer[devt->headSat];
         } else {
-            res.guid = ERROR_GUID;
+            res.guid = UNINITIALIZED_GUID;
         }
         break;
     }

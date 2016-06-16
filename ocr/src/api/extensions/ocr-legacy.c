@@ -138,8 +138,24 @@ bool ocrLegacyIsChannelReady(ocrGuid_t channelGuid) {
 
 }
 
+// Runtime legacy properties 
+#define WAIT_CREATE   0x1
+#define WAIT_SATISFY  0x2
+
 u8 ocrLegacyBlockProgress(ocrGuid_t evtHandle, ocrGuid_t* guid, void** result, u64* size, u16 properties) {
     START_PROFILE(api_ocrLegacyBlockProgress);
+    u16 rtProps = properties;
+    if (properties == LEGACY_PROP_NONE) {
+        //TODO: logic for PROP_NONE sound wrong
+        rtProps = WAIT_SATISFY;
+    } else if (properties == LEGACY_PROP_WAIT_FOR_CREATE) {
+        rtProps = WAIT_CREATE | WAIT_SATISFY;
+    } else if (properties == LEGACY_PROP_WAIT_IF_CREATED) {
+        rtProps = WAIT_SATISFY;
+    } else if (properties == LEGACY_PROP_CHECK) {
+        rtProps = 0;
+    }
+
     ocrPolicyDomain_t *pd = NULL;
     ocrFatGuid_t dbResult = {.guid = ERROR_GUID, .metaDataPtr = NULL};
     ocrFatGuid_t currentEdt;
@@ -168,13 +184,15 @@ u8 ocrLegacyBlockProgress(ocrGuid_t evtHandle, ocrGuid_t* guid, void** result, u
             }
 
             if(PD_MSG_FIELD_IO(guid.metaDataPtr) == NULL) {
-                if(properties == LEGACY_PROP_NONE) {
+                // if ((properties == LEGACY_PROP_NONE) || (properties & LEGACY_PROP_CHECK)) {
+                if (!(rtProps & WAIT_CREATE)) {
                     RETURN_PROFILE(OCR_EINVAL);
                 }
                 // Everytime there's a busy wait loop like this we need to
                 // call into the PD to try and make progress on other work
                 // For instance: might have to unlock some incoming label create here
-                else if(properties == LEGACY_PROP_WAIT_FOR_CREATE) {
+                // else if(properties == LEGACY_PROP_WAIT_FOR_CREATE) {
+                if (rtProps & WAIT_CREATE) {
                     ocrPolicyDomain_t * pd;
                     PD_MSG_STACK(msg);
                     getCurrentEnv(&pd, NULL, NULL, &msg);
@@ -210,6 +228,11 @@ u8 ocrLegacyBlockProgress(ocrGuid_t evtHandle, ocrGuid_t* guid, void** result, u
     } // end if local: ensures the event is created locally
     // If it was remote we directly use the EVT_GET operation
     // We can't wait on once/latch events since they could get freed asynchronously
+    if (properties & LEGACY_PROP_NONE) {
+        rtProps |= WAIT_CREATE;
+    }
+
+    bool notDone = true;
     do {
         hal_pause();
         PD_MSG_STACK(msg2);
@@ -226,7 +249,17 @@ u8 ocrLegacyBlockProgress(ocrGuid_t evtHandle, ocrGuid_t* guid, void** result, u
         // Everytime there's a busy wait loop like this we need to
         // call into the PD to try and make progress on other work
         // For instance: might have to unlock some incoming label create here
-        if (ocrGuidIsError(dbResult.guid)) {
+        // if ((properties & LEGACY_PROP_CHECK) && ocrGuidIsError(dbResult.guid)) {
+        if (!(rtProps & WAIT_CREATE) && ocrGuidIsError(dbResult.guid)) {
+            // Event hasn't been created yet
+            return OCR_EINVAL;
+        }
+        // Other cases just wait it out
+        notDone = (ocrGuidIsUninitialized(dbResult.guid) || ocrGuidIsError(dbResult.guid));
+        if (notDone) {
+            if (!(rtProps & WAIT_SATISFY)) {
+                return OCR_EINVAL;
+            }
             ocrPolicyDomain_t * pd;
             PD_MSG_STACK(msg);
             getCurrentEnv(&pd, NULL, NULL, &msg);
@@ -241,7 +274,7 @@ u8 ocrLegacyBlockProgress(ocrGuid_t evtHandle, ocrGuid_t* guid, void** result, u
 #undef PD_MSG
 #undef PD_TYPE
         }
-    } while(ocrGuidIsError(dbResult.guid));
+    } while(notDone);
 
     if(!(ocrGuidIsNull(dbResult.guid))) {
         if(dbResult.metaDataPtr == NULL) {
