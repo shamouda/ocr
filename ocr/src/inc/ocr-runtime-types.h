@@ -132,6 +132,11 @@ typedef enum {
 // Extracts marshalling information from a u32 communication property
 #define GET_PROP_U8_MARSHALL(commProperty) ((u8) ((commProperty & COMM_BEHAVIOR_MARSHALL_MASK) >> COMM_PROP_MARSHALL_OFFSET))
 
+// MT Comm constants
+#define COMM_ONE_WAY 0x1      /**< Message is only being sent with no response expected */
+#define COMM_STACK_MSG 0x2    /**< Message is stack allocated */
+
+
 /**
  * @brief Status of messages at the comm-platform level
  *

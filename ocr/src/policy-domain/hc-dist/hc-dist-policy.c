@@ -10,6 +10,7 @@
 #ifdef ENABLE_POLICY_DOMAIN_HC_DIST
 
 #include "debug.h"
+#include "ocr-comm-platform.h"
 #include "ocr-errors.h"
 #include "ocr-policy-domain.h"
 #include "ocr-policy-domain-tasks.h"
@@ -165,6 +166,7 @@ static void setReturnDetail(ocrPolicyMsg_t * msg, u8 returnDetail) {
 u8 processIncomingMsg(ocrPolicyDomain_t * pd, ocrPolicyMsg_t * msg) {
     // This is meant to execute incoming request and asynchronously processed responses (two-way asynchronous)
     // Regular responses are routed back to requesters by the scheduler and are processed by them.
+
     ASSERT((msg->type & PD_MSG_REQUEST) || ((msg->type & PD_MSG_RESPONSE) &&
                 (((msg->type & PD_MSG_TYPE_ONLY) == PD_MSG_DB_ACQUIRE) ||
                 ((msg->type & PD_MSG_TYPE_ONLY) == PD_MSG_GUID_METADATA_CLONE))));
@@ -241,6 +243,14 @@ u8 processCommEvent(ocrPolicyDomain_t *self, pdEvent_t** evt, u32 idx) {
     ASSERT(((*evt)->properties & PDEVT_TYPE_MASK) == PDEVT_TYPE_MSG);
     DPRINTF(DEBUG_LVL_VERB, "processCommEvent invoked\n");
     processIncomingMsg(self, ((pdEventMsg_t *) *evt)->msg);
+    // Ok to systematically free for now because msg events is a separate allocation from the pd msg itself
+    // In future revision of the implementation we may have to checkt the return code of processIncomingMsg
+    // to make a decision.
+    // NOTE: the event is actually auto garbage collected. We check to make sure this
+    // is the case
+    ASSERT((*evt)->properties & PDEVT_GC);
+    // It should also not free the message itself (see above)
+    ASSERT(!((*evt)->properties & PDEVT_DESTROY_DEEP));
     *evt = NULL;
     return 0;
 }
@@ -443,6 +453,8 @@ static u8 resolveRemoteMetaData(ocrPolicyDomain_t * pd, ocrFatGuid_t * tplFatGui
             DPRINTF(DEBUG_LVL_VVERB,"Resolving metadata: exit busy-wait for blocking call\n");
         } else {
             // Enqueue itself, the caller will be rescheduled for execution
+            DPRINTF(DEBUG_LVL_VVERB, "Resolving metadata: enqueuing message of type 0x%"PRIx32" with msgId %"PRIu64"\n",
+                msg->type, msg->msgId);
             ProxyTplNode_t * node = (ProxyTplNode_t *) pd->fcts.pdMalloc(pd, sizeof(ProxyTplNode_t));
             node->msg = msg;
             u64 newValue = (u64) node;
@@ -774,7 +786,9 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
     //src and dest set to the 'current' location. If the message has an affinity
     //hint, it is then used to potentially decide on a different destination.
     ocrLocation_t curLoc = self->myLocation;
+#ifndef UTASK_COMM2
     u32 properties = 0;
+#endif
 
 #ifdef PLACER_LEGACY //BUG #476 - This code is being deprecated
     // Try to automatically place datablocks and edts. Only support naive PD-based placement for now.
@@ -1703,6 +1717,43 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             DPRINTF(DEBUG_LVL_VVERB,"Can't process message locally sending and "
                     "processing a two-way message @ (orig: %p, now: %p) to %"PRIu64"\n", originalMsg, msg,
                     msg->destLocation);
+
+#ifdef UTASK_COMM2
+            // Get a strand and note that we want to send the message
+            // We will note that the next action should be to send the message.
+            // In an ideal world, we would package our continuation after that but
+            // for now we'll just have to wait on the response
+            pdEvent_t *event;
+            RESULT_ASSERT(pdCreateEvent(self, &event, PDEVT_TYPE_MSG, 0), ==, 0);
+            ((pdEventMsg_t *) event)->msg = msg;
+            ((pdEventMsg_t*)event)->properties |= COMM_STACK_MSG;
+            pdMarkReadyEvent(self, event);
+            pdStrand_t * msgStrand;
+            RESULT_ASSERT(
+                pdGetNewStrand(self, &msgStrand, self->strandTables[PDSTT_COMM-1], event, 0 /*unused*/),
+                ==, 0);
+            pdAction_t * sendAction = pdGetProcessMessageAction(NP_COMM);
+            // Do NOT clear the hold since we are waiting on the event next
+            RESULT_ASSERT(
+                pdEnqueueActions(self, msgStrand, 1, &sendAction, false/*NO clear hold*/),
+                ==, 0);
+            RESULT_ASSERT(pdUnlockStrand(msgStrand), ==, 0);
+
+            // Process strands until we get our message back
+            RESULT_ASSERT(pdProcessResolveEvents(self, NP_WORK, 1, &event, PDSTT_CLEARHOLD), ==, 0);
+
+            // At this point, we can resolve the event and proceed
+            // We also clear the fwdHold to let the runtime know that we no longer
+            // need this strand
+            {
+                u8 ret __attribute__((unused)) = pdResolveEvent(self, (u64*)&event, true);
+                ASSERT(ret == 0 || ret == OCR_ENOP);
+            }
+            ocrPolicyMsg_t *response = ((pdEventMsg_t*)event)->msg;
+            // We have the response and won't do anything with the event anymore; we destroy it
+            // We could destroy it with the handle but clean enough here
+            RESULT_ASSERT(pdDestroyEvent(self, event), ==, 0);
+#else
             // Since it's a two-way, we'll be waiting for the response and set PERSIST.
             // NOTE: underlying comm-layer may or may not make a copy of msg.
             properties |= TWOWAY_MSG_PROP;
@@ -1729,6 +1780,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
 
             ocrPolicyMsg_t * response = handle->response;
             DPRINTF(DEBUG_LVL_VERB, "Processing response @ %p to original message @ %p\n", response, originalMsg);
+#endif
             switch (response->type & PD_MSG_TYPE_ONLY) {
             case PD_MSG_DB_ACQUIRE:
             {
@@ -1814,7 +1866,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
                         if (proxyDb->refCount == 1) {
                             DPRINTF(DEBUG_LVL_VVERB,"DB_RELEASE response received for DB GUID "GUIDF", destroy proxy\n", GUIDA(dbGuid));
                             // Removes the entry for the proxy DB in the GUID provider
-                            self->guidProviders[0]->fcts.unregisterGuid(self->guidProviders[0], dbGuid, (u64) 0);
+                            self->guidProviders[0]->fcts.unregisterGuid(self->guidProviders[0], dbGuid, (u64**) 0);
                             // Nobody else can get a reference on the proxy's lock now
                             hal_unlock32(&((ocrPolicyDomainHcDist_t *) self)->lockDbLookup);
                             // Deallocate the proxy DB and the cached ptr
@@ -1907,7 +1959,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             // pointers escape into the wild ? They become invalid when the message
             // is deleted.
 
-            if (originalMsg != handle->response) {
+            if (originalMsg != response) {
                 //BUG #587: Here there are a few issues:
                 // - The response message may include marshalled pointers, hence
                 //   the original message may be too small to accomodate the payload part.
@@ -1916,7 +1968,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
                 //   pointers may outlive the message lifespan. Then there's the question
                 //   of when those are freed.
                 u64 baseSize = 0, marshalledSize = 0;
-                ocrPolicyMsgGetMsgSize(handle->response, &baseSize, &marshalledSize, 0);
+                ocrPolicyMsgGetMsgSize(response, &baseSize, &marshalledSize, 0);
 
                 // That should only happen for cloning for which we've already
                 // extracted payload as a separated heap-allocated pointer
@@ -1933,18 +1985,20 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
                 // Here we just need something that does a shallow copy
                 u32 bufBSize = originalMsg->bufferSize;
                 // Copy msg into the buffer for the common part
-                hal_memCopy(originalMsg, handle->response, baseSize, false);
+                hal_memCopy(originalMsg, response, baseSize, false);
                 originalMsg->bufferSize = bufBSize;
                 // ocrPolicyMsgUnMarshallMsg((u8*)handle->response, NULL, originalMsg, MARSHALL_ADDL);
                 // ocrPolicyMsgMarshallMsg(handle->response, baseSize, (u8*)originalMsg, MARSHALL_DUPLICATE);
-                self->fcts.pdFree(self, handle->response);
+                self->fcts.pdFree(self, response);
             }
 
-            if ((originalMsg != msg) && (msg != handle->response)) {
+            if ((originalMsg != msg) && (msg != response)) {
                 // Just double check if a copy had been made for the request and free it.
                 self->fcts.pdFree(self, msg);
             }
+#ifndef UTASK_COMM2
             handle->destruct(handle);
+#endif
         } else {
             // Either a one-way request or an asynchronous two-way
             DPRINTF(DEBUG_LVL_VVERB,"Sending a one-way request or response to asynchronous two-way msg @ %p to %"PRIu64"\n",
@@ -1995,7 +2049,51 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             // one-way request, several options:
             // - make a copy in sendMessage (current strategy)
             // - submit the message to be sent and wait for delivery
-            u8 res = self->fcts.sendMessage(self, msg->destLocation, msg, NULL, sendProp);
+            u8 res = 0;
+#ifdef UTASK_COMM2
+            // We don't care as much about sendProp as computed above; what we
+            // do care about is whether or not we need to copy the message
+            // since it will be encapsulated in a micro-task. This should also
+            // go away when everyting is MT friendly.
+
+            // This behavior is taken from the delegate comm-api:
+            //   - always make a DUPLICATE copy
+            //   - EXCEPT if we are doing a remote EDT creation (PD_MSG_WORK_CREATE and
+            //     no response requirement
+            ocrMarshallMode_t marshallMode = MARSHALL_DUPLICATE; // Default
+            if(((msg->type & PD_MSG_TYPE_ONLY) == PD_MSG_WORK_CREATE) && !(msg->type & PD_MSG_REQ_RESPONSE)) {
+                marshallMode = MARSHALL_FULL_COPY;
+            }
+            u64 baseSize = 0, marshalledSize = 0;
+            ocrPolicyMsgGetMsgSize(msg, &baseSize, &marshalledSize, marshallMode);
+            u64 fullSize = baseSize + marshalledSize;
+
+            ocrPolicyMsg_t * msgCpy = self->fcts.pdMalloc(self, fullSize);
+            initializePolicyMessage(msgCpy, fullSize);
+            ocrPolicyMsgMarshallMsg(msg, baseSize, (u8*)msgCpy, marshallMode);
+
+            // Package msgCpy in an event
+            pdEvent_t *event;
+            RESULT_ASSERT(pdCreateEvent(self, &event, PDEVT_TYPE_MSG, 0), ==, 0);
+            event->properties |= PDEVT_GC; // We need to garbage collect this event
+                                           // when the strand is over
+            event->properties |= PDEVT_DESTROY_DEEP; // We copied the message as well so
+                                                     // it needs to be freed with the event
+            ((pdEventMsg_t*)event)->msg = msgCpy;
+            ((pdEventMsg_t*)event)->properties = COMM_ONE_WAY; // This is a "one-way" message
+                                                               // as no response is going to
+                                                               // be contained in this event
+            pdMarkReadyEvent(self, event);
+            pdStrand_t * msgStrand;
+            RESULT_ASSERT(pdGetNewStrand(self, &msgStrand, self->strandTables[PDSTT_COMM-1], event, 0 /*unused*/), ==, 0);
+            pdAction_t * processAction = pdGetProcessMessageAction(NP_COMM);
+            // Clear the hold here because we are not going to be waiting on anything
+            // The created event will be destroyed by the communication layer
+            RESULT_ASSERT(pdEnqueueActions(self, msgStrand, 1, &processAction, true/*clear hold*/), ==, 0);
+            RESULT_ASSERT(pdUnlockStrand(msgStrand), ==, 0);
+#else
+            res = self->fcts.sendMessage(self, msg->destLocation, msg, NULL, sendProp);
+#endif
             // msg has been copied so we can update its returnDetail regardless
             // This is open for debate here #932
             if (sendProp == 0) {
@@ -2100,9 +2198,37 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             // Do the post processing BEFORE sending otherwise the msg destruction is concurrent
             hcDistSchedNotifyPostProcessMessage(self, msg);
             postProcess = false;
-
+#ifdef UTASK_COMM2
+            // Ideally, we would still have the event/strand that called this
+            // but for now, we create another event and say that the next action on it
+            // is to send the message. This will be a COMM_ONE_WAY message because
+            // the event can then be destroyed since we are not going to do anything
+            // with it.
+            {
+                pdEvent_t *event;
+                RESULT_ASSERT(pdCreateEvent(self, &event, PDEVT_TYPE_MSG, 0), ==, 0);
+                event->properties |= PDEVT_GC;
+                event->properties |= PDEVT_DESTROY_DEEP;
+                ((pdEventMsg_t*)event)->msg = msg;
+                // This is a "one-way" message because this is a response and
+                // we don't do anything with the response to the response
+                ((pdEventMsg_t*)event)->properties = COMM_ONE_WAY;
+                pdMarkReadyEvent(self, event);
+                pdStrand_t * msgStrand;
+                RESULT_ASSERT(
+                    pdGetNewStrand(self, &msgStrand, self->strandTables[PDSTT_COMM-1], event, 0 /*unused*/),
+                    ==, 0);
+                pdAction_t * processAction = pdGetProcessMessageAction(NP_COMM);
+                // Clear the hold here because we are not going to be waiting on anything
+                RESULT_ASSERT(
+                    pdEnqueueActions(self, msgStrand, 1, &processAction, true/*clear hold*/),
+                    ==, 0);
+                RESULT_ASSERT(pdUnlockStrand(msgStrand), ==, 0);
+            }
+#else
             // Send the response message
             self->fcts.sendMessage(self, msg->destLocation, msg, NULL, sendProp);
+#endif
         }
     }
 
@@ -2117,15 +2243,31 @@ u8 hcDistProcessEvent(ocrPolicyDomain_t* self, pdEvent_t **evt, u32 idx) {
     // Simple version to test out micro tasks for now. This just executes a blocking
     // call to the regular process message and returns NULL
     ASSERT(idx == 0);
+    ASSERT((evt != NULL) && (*evt != NULL));
     ASSERT(((*evt)->properties & PDEVT_TYPE_MASK) == PDEVT_TYPE_MSG);
-    pdEventMsg_t *evtMsg = (pdEventMsg_t*)*evt;
+    pdEventMsg_t *evtMsg = (pdEventMsg_t*)(*evt);
     ocrPolicyMsg_t * msg = evtMsg->msg;
-    if (msg->srcLocation != self->myLocation) {
+
+    // This is called in two cases:
+    //   - if we actually need to process a message (for example, we had a response or something)
+    //   - if we need to send a message (the worker is now the COMM worker) and we therefore
+    //     need to directly send the message (we skip the comm-API as that will probably go away)
+    if(msg->destLocation != self->myLocation) {
+        DPRINTF(DEBUG_LVL_VERB, "Found a message to be sent to 0x%"PRIx64"\n", msg->destLocation);
+        ocrWorker_t *worker;
+        getCurrentEnv(NULL, &worker, NULL, NULL);
+        u32 id = worker->id;
+        RESULT_ASSERT(self->commApis[id]->commPlatform[0].fcts.sendMessageMT(
+            &(self->commApis[id]->commPlatform[0]), evt, /*status evt*/NULL, 0), ==, 0);
+    } else if (msg->srcLocation != self->myLocation) {
         processCommEvent(self, evt, idx);
+        *evt = NULL;
     } else {
+        // HACK: For now, this path should not be exercised
+        ASSERT(0);
         hcDistProcessMessage(self, evtMsg->msg, true);
+        *evt = NULL;
     }
-    *evt = NULL;
     return 0;
 }
 
@@ -2206,6 +2348,9 @@ u8 hcDistPdSwitchRunlevel(ocrPolicyDomain_t *self, ocrRunlevel_t runlevel, u32 p
 u8 hcDistPdSendMessage(ocrPolicyDomain_t* self, ocrLocation_t target, ocrPolicyMsg_t *message,
                    ocrMsgHandle_t **handle, u32 properties) {
     ocrWorker_t * worker;
+#ifdef UTASK_COMM2
+    ASSERT(0); // Should use micro-tasks to communicate
+#endif
     getCurrentEnv(NULL, &worker, NULL, NULL);
     ASSERT(((s32)target) > -1);
     ASSERT(message->srcLocation == self->myLocation);
@@ -2216,6 +2361,9 @@ u8 hcDistPdSendMessage(ocrPolicyDomain_t* self, ocrLocation_t target, ocrPolicyM
 }
 
 u8 hcDistPdPollMessage(ocrPolicyDomain_t *self, ocrMsgHandle_t **handle) {
+#ifdef UTASK_COMM2
+    ASSERT(0); // Should use micro-tasks to communicate
+#endif
     ocrWorker_t * worker;
     getCurrentEnv(NULL, &worker, NULL, NULL);
     u32 id = worker->id;
@@ -2224,11 +2372,42 @@ u8 hcDistPdPollMessage(ocrPolicyDomain_t *self, ocrMsgHandle_t **handle) {
 }
 
 u8 hcDistPdWaitMessage(ocrPolicyDomain_t *self,  ocrMsgHandle_t **handle) {
+#ifdef UTASK_COMM2
+    ASSERT(0); // Should use micro-tasks to communicate
+#endif
     ocrWorker_t * worker;
     getCurrentEnv(NULL, &worker, NULL, NULL);
     u32 id = worker->id;
     u8 ret = self->commApis[id]->fcts.waitMessage(self->commApis[id], handle);
     return ret;
+}
+
+u8 hcDistPdSendMessageMT(ocrPolicyDomain_t* self, pdEvent_t **inOutEvent,
+                         pdEvent_t **statusEvent, u32 idx) {
+#ifdef UTASK_COMM2
+    ASSERT(0); // Should use micro-tasks to communicate
+#endif
+    return OCR_ENOTSUP;
+}
+
+u8 hcDistPdPollMessageMT(ocrPolicyDomain_t *self, pdEvent_t **outEvent, u32 idx) {
+    // This is used by the comm worker to look for work. We just forward
+    // directly to the comm platform
+    ocrWorker_t *worker;
+    getCurrentEnv(NULL, &worker, NULL, NULL);
+    u32 id = worker->id;
+    return self->commApis[id]->commPlatform[0].fcts.pollMessageMT(
+        &(self->commApis[id]->commPlatform[0]), outEvent, idx);
+}
+
+u8 hcDistPdWaitMessageMT(ocrPolicyDomain_t *self,  pdEvent_t **outEvent, u32 idx) {
+    // This is used by the comm worker to look for work. We just forward
+    // directly to the comm platform
+    ocrWorker_t *worker;
+    getCurrentEnv(NULL, &worker, NULL, NULL);
+    u32 id = worker->id;
+    return self->commApis[id]->commPlatform[0].fcts.waitMessageMT(
+        &(self->commApis[id]->commPlatform[0]), outEvent, idx);
 }
 
 ocrPolicyDomain_t * newPolicyDomainHcDist(ocrPolicyDomainFactory_t * factory,
@@ -2295,6 +2474,10 @@ ocrPolicyDomainFactory_t * newPolicyDomainFactoryHcDist(ocrParamList_t *perType)
                                                    hcDistPdSendMessage);
     derivedBase->policyDomainFcts.pollMessage = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, ocrMsgHandle_t**), hcDistPdPollMessage);
     derivedBase->policyDomainFcts.waitMessage = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, ocrMsgHandle_t**), hcDistPdWaitMessage);
+    derivedBase->policyDomainFcts.sendMessageMT = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, pdEvent_t **, pdEvent_t*, u32),
+                                                            hcDistPdSendMessageMT);
+    derivedBase->policyDomainFcts.pollMessageMT = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, pdEvent_t **, u32), hcDistPdPollMessageMT);
+    derivedBase->policyDomainFcts.waitMessageMT = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, pdEvent_t **, u32), hcDistPdWaitMessageMT);
 
     baseFactory->destruct(baseFactory);
     return derivedBase;

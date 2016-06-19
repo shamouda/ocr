@@ -890,12 +890,15 @@ s32 populate_inst(ocrParamList_t **inst_param, int inst_param_size, void **insta
             workerType_t mytype = -1;
             TO_ENUM (mytype, inststr, workerType_t, worker_types, workerMax_id);
             switch (mytype) {
-#if defined(ENABLE_WORKER_HC) || defined(ENABLE_WORKER_HC_COMM)
+#if defined(ENABLE_WORKER_HC) || defined(ENABLE_WORKER_HC_COMM) || defined(ENABLE_WORKER_HC_COMM_MT)
 #if defined(ENABLE_WORKER_HC)
                 case workerHc_id:
 #endif
 #if defined(ENABLE_WORKER_HC_COMM)
                 case workerHcComm_id:
+#endif
+#if defined(ENABLE_WORKER_HC_COMM_MT)
+                case workerHcCommMT_id:
 #endif
                     {
                     char *workerstr;

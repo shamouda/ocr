@@ -14,6 +14,9 @@ const char * worker_types[] = {
 #ifdef ENABLE_WORKER_HC_COMM
    "HC_COMM",
 #endif
+#ifdef ENABLE_WORKER_HC_COMM_MT
+   "HC_COMM_MT",
+#endif
 #ifdef ENABLE_WORKER_XE
    "XE",
 #endif
@@ -43,6 +46,10 @@ ocrWorkerFactory_t * newWorkerFactory(workerType_t type, ocrParamList_t *perType
 #ifdef ENABLE_WORKER_HC_COMM
     case workerHcComm_id:
       return newOcrWorkerFactoryHcComm(perType);
+#endif
+#ifdef ENABLE_WORKER_HC_COMM_MT
+    case workerHcCommMT_id:
+      return newOcrWorkerFactoryHcCommMT(perType);
 #endif
 #ifdef ENABLE_WORKER_XE
     case workerXe_id:
