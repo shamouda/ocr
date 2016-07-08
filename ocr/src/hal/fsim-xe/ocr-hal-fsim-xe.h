@@ -582,4 +582,608 @@
 #define SET16(addr, value) (*((u16*)(addr)) = (u16)(value))
 #define SET32(addr, value) (*((u32*)(addr)) = (u32)(value))
 #define SET64(addr, value) (*((u64*)(addr)) = (u64)(value))
+
+/**
+ * @brief Start a new chain
+ *
+ * @param decaddr[in]     u64*: Pointer memory location in tg to decrement
+ *                        after sucessful completion of entire chain.
+ *                        location is to be decremented upon completion of this
+ *                        chain.
+ * @return id of allotted chain.
+ * @todo Add interrupt and decrement options.
+ *       interrupt[in]   Not supported yet. u8 0 or 1 to indicate if an interrupt
+ *                        is desired after completion of this chain.
+ *       decrement[in]   Not supported yet. u8 0 or 1 to indicate if a memory
+ */
+#define hal_chain_start(decaddr) ({                          \
+    u64 __cid;                                             \
+    __asm__ __volatile__("chain.init %0, %1 , N , N, 64\n\t"           \
+                              : "=r" (__cid)            \
+                              : "r" (decaddr));            \
+    __cid;                                                              \
+       })
+
+/**
+ * @brief End chain that is currently open.
+ */
+#define hal_chain_end(decaddr) ({                          \
+    __asm__ __volatile__("chain.end\n\t"           \
+                              :             \
+                              :           );  \
+       })
+
+
+/**
+ * @brief Wait on a chain whose id matches with supplied hwid.
+ * If no match found , call returns.
+ * @param cid[in]      u64 chain id to wait upon.
+ */
+#define hal_chain_wait(cid) ({                          \
+    __asm__ __volatile__("chain.wait %0, 64\n\t"           \
+                              :             \
+                              : "r" (cid));            \
+       })
+
+
+/**
+ * @brief Poll chain whose id matches with supplied hwid.
+ * If no match found , call returns.
+ * @param cid[in]      u64 chain id to wait upon.
+ *
+ * @return u64 status of the chain.
+ */
+#define hal_chain_poll(cid)                          \
+    ({                                                                  \
+        u64 __status;                                 \
+    __asm__ __volatile__("chain.poll %0, %1, 64\n\t"           \
+                              : "=r" (__status)            \
+                              : "r" (cid));            \
+        __status;\
+    })
+
+/**
+ * @brief Kill chain whose id matches with supplied hwid.
+ * If no match found , call returns.
+ * @param hwid[in]      u64 chain id of chain to kill.
+ *
+ */
+#define hal_chain_kill(cid)                          \
+    ({                                                                  \
+    __asm__ __volatile__("chain.kill %0,64\n\t"           \
+                              :             \
+                              : "r" (cid));            \
+    })
+
+/**
+ * @brief Add 1 item to head of specified queue in blocking fashion.
+ *
+ * @param item[in]     u64 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_head_64(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, H, 64\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Add 1 item to head of specified queue in blocking fashion.
+ *
+ * @param item[in]     u32 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_head_32(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, H, 32\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+/**
+ * @brief Add 1 item to head of specified queue in blocking fashion.
+ *
+ * @param item[in]     u16 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_head_16(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, H, 16\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+/**
+ * @brief Add 1 item to head of specified queue in blocking fashion.
+ *
+ * @param item[in]     u8 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_head_8(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, H, 8\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Add 1 item to tail of specified queue in blocking fashion.
+ *
+ * @param item[in]     u64 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_tail_64(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, T, 64\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Add 1 item to tail of specified queue in blocking fashion.
+ *
+ * @param item[in]     u32 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_tail_32(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, T, 32\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+/**
+ * @brief Add 1 item to tail of specified queue in blocking fashion.
+ *
+ * @param item[in]     u16 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_tail_16(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, T, 16\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+/**
+ * @brief Add 1 item to tail of specified queue in blocking fashion.
+ *
+ * @param item[in]     u8 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_add1_b_tail_8(item, qbuff)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.add1.w %0, %1, T, 8\n\t"           \
+                              :             \
+                              : "r" (item),            \
+                                "r" (qbuff));            \
+    })
+
+
+/**
+ * @brief Remove 1 item from head of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u64 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_head_64(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, H, 64\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from head of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u32 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_head_32(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, H, 32\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from head of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u16 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_head_16(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, H, 16\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from head of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u8 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_head_8(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, H, 8\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from tail of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u64 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_tail_64(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, T, 64\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from tail of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u32 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_tail_32(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, T, 32\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from tail of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u16 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_tail_16(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, T, 16\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+/**
+ * @brief Remove 1 item from tail of specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ * @return u8 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_b_tail_8(qbuff)                          \
+    ({                                                                  \
+        u64 __item ; \
+    __asm__ __volatile__("qma.rem1.w %0, %1, T, 8\n\t"           \
+                              : "=r" (__item)            \
+                              : "r" (qbuff));            \
+        __item;\
+    })
+
+
+/**
+ * @brief Add n items to head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_head_64(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, H, 64\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items of size 32 to head of specified queue in blocking
+ *        fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_head_32(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, H, 32\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items of size 16 to head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_head_16(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, H, 16\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items of size 8 to head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_head_8(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, H, 8\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items to tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_tail_64(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, T, 64\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items of size 32 to tail of specified queue in blocking
+ *        fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_tail_32(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, T, 32\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items of size 16 to tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_tail_16(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, T, 16\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+/**
+ * @brief Add n items of size 8 to tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_addx_b_tail_8(qbuff, daddr, dnum)                      \
+    ({                                                                  \
+    __asm__ __volatile__("qma.addX.w %0, %1, %2, T, 8\n\t"           \
+                              :             \
+                              : "r" (qbuff),            \
+                                "r" (daddr),            \
+                                "r" (dnum));            \
+    })
+
+
+/**
+ * @brief Remove n items of size 64 from head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_head_64(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, H, 64\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 32 from head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_head_32(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, H, 32\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 16 from head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_head_16(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, H, 16\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 8 from head of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_head_8(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, H, 8\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 64 from tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_tail_64(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, T, 64\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 32 from tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_tail_32(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, T, 32\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 16 from tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_tail_16(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, T, 16\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+/**
+ * @brief Remove n items of size 8 from tail of specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ *
+ */
+#define hal_q_remx_b_tail_8(qbuff, daddr, dnum)                          \
+    ({                                                                  \
+    __asm__ __volatile__("qma.remX.w %0, %1, %2, T, 8\n\t"           \
+                              :             \
+                              : "r" (daddr),            \
+                                "r" (dnum),            \
+                                "r" (qbuff));            \
+    })
+
+
 #endif /* __OCR_HAL_FSIM_XE_H__ */

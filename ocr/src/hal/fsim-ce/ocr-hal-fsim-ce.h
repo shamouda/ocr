@@ -559,4 +559,130 @@
 //static inline void SET64(u64 addr, u64 value) { *((u64 *) addr) = value; }
 #define  SET64(addr, value) ({ *((u64 *) (addr)) = (value); })
 
+/**
+ * @brief Start a new chain
+ *
+ * @param decaddr[in]     u64 address of a memory location in tg to decrement
+ *                        after sucessful completion of entire chain.
+ * @param interrupt[in]   u8 0 or 1 to indicate if an interrupt is desired after
+ *                        completion of this chain.
+ * @param decrement[in]   u8 0 or 1 to indicate if a memory location is to be
+ *                        decremented upon completion of this chain.
+ * @return id of allotted chain.
+ */
+#define hal_chain_start(decaddr, interrupt, decrement)                          \
+    ({                                                                  \
+        u64 __cid = tg_mmio_chain_init(decaddr , interrupt , decrement);  \
+        __cid;\
+    })
+
+/**
+ * @brief End current chain
+ */
+#define hal_chain_end()                          \
+    ({                                                                  \
+        tg_mmio_chain_end();  \
+    })
+
+/**
+ * @brief Wait on a chain whose id matches with supplied hwid.
+ * If no match found , call returns.
+ * @param hwid[in]      u64 chain id to wait upon.
+ */
+#define hal_chain_wait(hwid)                          \
+    ({                                                                  \
+        tg_mmio_chain_wait(hwid);  \
+    })
+
+/**
+ * @brief Poll chain whose id matches with supplied hwid.
+ * If no match found , call returns.
+ * @param hwid[in]      u64 chain id to wait upon.
+ *
+ * @return u64 status of the chain.
+ */
+#define hal_chain_poll(hwid)                          \
+    ({                                                                  \
+        u64 __status = tg_mmio_chain_poll(hwid);  \
+        __status;\
+    })
+
+/**
+ * @brief Kill chain whose id matches with supplied hwid.
+ * If no match found , call returns.
+ * @param hwid[in]      u64 chain id of chain to kill.
+ *
+ */
+#define hal_chain_kill(hwid)                          \
+    ({                                                                  \
+        tg_mmio_chain_kill(hwid);  \
+    })
+
+/**
+ * @brief Add 1 item to specified queue in blocking fashion.
+ *
+ * @param item[in]     u64 item to added in queue
+ * @param qbuff[in]    u64 Target queue's qbuff
+ * @param ht[in]       u8 QUEUE_HEAD or QUEUE_TAIL to indicate operation at
+ *                     head or tail resp.
+ * @param size[in]     TG_SIZE_{64/32/16/8}BIT indicates size of item.
+ *
+ */
+#define hal_q_add1_blocking(item, qbuff, ht, size)                          \
+    ({                                                                  \
+        tg_mmio_qmaadd1w(u64 item , u64 qbuff , u8 ht, u64 size);\
+    })
+
+
+/**
+ * @brief Remove 1 item from specified queue in blocking fashion.
+ *
+ * @param qbuff[in]    u64 Target queue's qbuff
+ * @param ht[in]       u8 QUEUE_HEAD or QUEUE_TAIL to indicate operation at
+ *                     head or tail resp.
+ * @param size[in]     TG_SIZE_{64/32/16/8}BIT indicates size of item.
+ *
+ * @return u64 element popped from queue. Cast it to size you desire.
+ */
+#define hal_q_rem1_blocking(qbuff, ht, size)                          \
+    ({                                                                  \
+        u64 __item = tg_mmio_qmarem1w(qbuff, ht, size);\
+        __item;\
+    })
+
+/**
+ * @brief Add n items to specified queue in blocking fashion.
+ *
+ * @param daddr[in]     u64 tg-address where elements are located
+ *                     (address of 1st element)
+ * @param dnum[in]     u64 number of elements to be read from addr.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ * @param ht[in]       u8 QUEUE_HEAD or QUEUE_TAIL to indicate operation at
+ *                     head or tail resp.
+ * @param size[in]     TG_SIZE_{64/32/16/8}BIT indicates size of item.
+ *
+ */
+#define hal_q_addx_blocking(qbuff, daddr, dnum, ht, size)                      \
+    ({                                                                  \
+        tg_mmio_qmaaddXw(daddr , qbuff , dnum , ht, size);              \
+    })
+
+/**
+ * @brief Remove n items from specified queue in blocking fashion.
+ *
+ * @param daddr[in]    u64 tg-address where elements popped from queue
+ *                     will be written.
+ * @param dnum[in]     u64 number of elements to be removed from queue.
+ * @param qbuff[in]    u64 Target queue's qbuff
+ * @param ht[in]       u8 QUEUE_HEAD or QUEUE_TAIL to indicate operation at
+ *                     head or tail resp.
+ * @param size[in]     TG_SIZE_{64/32/16/8}BIT indicates size of item.
+ *
+ */
+#define hal_q_remx_blocking(qbuff, daddr, dnum, ht, size)                          \
+    ({                                                                  \
+        tg_mmio_qmaremXw(u64 daddr , u64 qbuff , u64 dnum , u8 ht, u64 size);\
+    })
+
+
 #endif /* __OCR_HAL_FSIM_CE_H__ */
