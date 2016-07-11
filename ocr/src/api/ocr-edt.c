@@ -53,8 +53,8 @@ u8 ocrEventCreateParams(ocrGuid_t *guid, ocrEventTypes_t eventType, u16 properti
 #undef PD_TYPE
     DPRINTF_COND_LVL(((returnCode != 0) && (returnCode != OCR_EGUIDEXISTS)), DEBUG_LVL_WARN, DEBUG_LVL_INFO,
                      "EXIT ocrEventCreate -> %"PRIu32"; GUID: "GUIDF"\n", returnCode, GUIDA(*guid));
-    if((returnCode != 0) && (returnCode != OCR_EGUIDEXISTS))
-        OCR_TOOL_TRACE(true, OCR_TRACE_TYPE_EVENT, OCR_ACTION_CREATE, traceEventCreate, guid);
+    if(returnCode == 0)
+        OCR_TOOL_TRACE(true, OCR_TRACE_TYPE_EVENT, OCR_ACTION_CREATE, traceEventCreate, *guid);
 
     RETURN_PROFILE(returnCode);
 
