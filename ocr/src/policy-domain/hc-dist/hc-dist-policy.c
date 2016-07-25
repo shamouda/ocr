@@ -2247,6 +2247,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
 			#define PD_TYPE PD_MSG_EVT_SAT_ADD
             ocrFatGuid_t edt = PD_MSG_FIELD_I(edt);
             ocrFatGuid_t event = PD_MSG_FIELD_I(event);
+            u64 type = PD_MSG_FIELD_I(type);
             #undef PD_MSG
             #undef PD_TYPE
             //is the satisfier remote?
@@ -2256,7 +2257,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             guidLocation(self, edt, &edtLoc);
             guidLocation(self, event, &eventLoc);
 
-            //printf("Here[%d] ocrAddSatisfier  edt=%d  event=%d \n", (u32)self->myLocation , (u32)edtLoc  , (u32)eventLoc );
+            printf("Here[%d] ocrAddSatisfier TYPE[%d] edt=%d  event=%d \n", (u32)self->myLocation , type, (u32)edtLoc  , (u32)eventLoc );
             if (eventLoc == self->myLocation && edtLoc != self->myLocation) {
             	ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
             	hal_lock32(&(pdSelfDist->lockResEvtList));

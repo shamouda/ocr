@@ -349,7 +349,7 @@ u8 ocrAddDependence(ocrGuid_t source, ocrGuid_t destination, u32 slot,
                     ocrDbAccessMode_t mode);
 
 
-u8 ocrAddEventSatisfier(ocrGuid_t taskGuid, ocrGuid_t eventGuid);
+u8 ocrAddEventSatisfier(ocrGuid_t taskGuid, ocrGuid_t eventGuid, u64 type);
 
 
 /**

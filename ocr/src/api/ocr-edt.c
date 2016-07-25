@@ -458,7 +458,7 @@ u8 ocrAddDependence(ocrGuid_t source, ocrGuid_t destination, u32 slot,
 }
 
 //TODO: ocrAddEventSatisfier= (no-op) in non-resilient mode
-u8 ocrAddEventSatisfier(ocrGuid_t edtGuid, ocrGuid_t eventGuid) {
+u8 ocrAddEventSatisfier(ocrGuid_t edtGuid, ocrGuid_t eventGuid, u64 type) {
     START_PROFILE(api_ocrAddEventSatisfier);
     DPRINTF(DEBUG_LVL_INFO, "ENTER ocrAddEventSatisfier(edtGuid="GUIDF", eventGuid="GUIDF")\n",
             GUIDA(edtGuid), GUIDA(eventGuid));
@@ -471,6 +471,7 @@ u8 ocrAddEventSatisfier(ocrGuid_t edtGuid, ocrGuid_t eventGuid) {
 #define PD_MSG (&msg)
 #define PD_TYPE PD_MSG_EVT_SAT_ADD
 	msg.type = PD_MSG_EVT_SAT_ADD | PD_MSG_REQUEST;
+	PD_MSG_FIELD_I(type) = type;
 	PD_MSG_FIELD_I(edt.guid) = edtGuid;
 	PD_MSG_FIELD_I(edt.metaDataPtr) = NULL;
 	PD_MSG_FIELD_I(event.guid) = eventGuid;

@@ -894,6 +894,7 @@ typedef struct _ocrPolicyMsg_t {
         struct {
             union {
                 struct {
+                	u64 type;
 					ocrFatGuid_t edt;     /**< In: Event satisfier */
 					ocrFatGuid_t event;   /**< In: Event */
 					ocrFatGuid_t currentEdt;  /**< In: EDT that is adding dep */
