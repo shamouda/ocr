@@ -2257,7 +2257,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             guidLocation(self, edt, &edtLoc);
             guidLocation(self, event, &eventLoc);
 
-            printf("Here[%d] ocrAddSatisfier TYPE[%d] edt=%d  event=%d \n", (u32)self->myLocation , type, (u32)edtLoc  , (u32)eventLoc );
+            printf("Here[%d] ocrAddSatisfier TYPE[%d] edt=%d  event=%d \n", (u32)self->myLocation , (u32)type, (u32)edtLoc  , (u32)eventLoc );
             if (eventLoc == self->myLocation && edtLoc != self->myLocation) {
             	ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
             	hal_lock32(&(pdSelfDist->lockResEvtList));
