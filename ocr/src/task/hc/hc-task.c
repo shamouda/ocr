@@ -1361,7 +1361,7 @@ u8 taskExecute(ocrTask_t* base) {
             u32 i;
             for(i=0; i < depc; ++i) {
                 u32 j = i / 64;
-                if ((!(ocrGuidIsNull(depv[i].guid))) &&
+                if ((!(ocrGuidIsNull(depv[i].guid) || ocrGuidIsFailure(depv[i].guid) )) &&
                     ((j >= OCR_MAX_MULTI_SLOT) || (derived->doNotReleaseSlots[j] == 0) ||
                      ((j < OCR_MAX_MULTI_SLOT) && (((1ULL << (i % 64)) & derived->doNotReleaseSlots[j]) == 0)))) {
                     getCurrentEnv(NULL, NULL, NULL, &msg);
