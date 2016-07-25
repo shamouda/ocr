@@ -2171,7 +2171,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             ocrGuidKind srcKind;
             self->guidProviders[0]->fcts.getKind(self->guidProviders[0], src.guid, &srcKind);
 
-            if(srcKind & OCR_GUID_EDT || srcKind & OCR_GUID_EVENT) {
+            if(srcKind & OCR_GUID_EVENT) {
 				ocrLocation_t srcLoc = (ocrLocation_t) (int)0;
 				ocrLocation_t dstLoc = (ocrLocation_t) (int)0;
 				guidLocation(self, src, &srcLoc);
@@ -2257,24 +2257,35 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             #undef PD_TYPE
             //is the satisfier remote?
 
-            ocrLocation_t edtLoc = (ocrLocation_t) (int)0;
-            ocrLocation_t eventLoc = (ocrLocation_t) (int)0;
-            guidLocation(self, edt, &edtLoc);
-            guidLocation(self, event, &eventLoc);
+            ocrGuidKind edtKind, eventKind;
+            self->guidProviders[0]->fcts.getKind(self->guidProviders[0], edt.guid, &edtKind);
+            self->guidProviders[0]->fcts.getKind(self->guidProviders[0], event.guid, &eventKind);
 
-            printf("Here[%d] ocrAddSatisfier TYPE[%d] edt=%d  event=%d \n", (u32)self->myLocation , (u32)type, (u32)edtLoc  , (u32)eventLoc );
-            if (eventLoc == self->myLocation && edtLoc != self->myLocation) {
-            	ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
-            	hal_lock32(&(pdSelfDist->lockResEvtList));
-            	node->next = pdSelfDist->proxyListHead->next;
-            	pdSelfDist->proxyListHead->next = node;
-            	node->prev = pdSelfDist->proxyListHead;
-            	node->next->prev = node;
-            	node->type = 0;
-            	node->location = edtLoc;
-            	node->eventFatGuid = event;
-            	hal_unlock32(&(pdSelfDist->lockResEvtList));
-            	//TODO: handle deleting
+            if((eventKind & OCR_GUID_EVENT) && ( edtKind & OCR_GUID_EDT )) {
+				ocrLocation_t edtLoc = (ocrLocation_t) (int)0;
+				ocrLocation_t eventLoc = (ocrLocation_t) (int)0;
+				guidLocation(self, edt, &edtLoc);
+				guidLocation(self, event, &eventLoc);
+
+				printf("Here[%d] ocrAddSatisfier TYPE[%d] edt=%d  event=%d \n", (u32)self->myLocation , (u32)type, (u32)edtLoc  , (u32)eventLoc );
+				if (eventLoc == self->myLocation && edtLoc != self->myLocation) {
+					ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
+					hal_lock32(&(pdSelfDist->lockResEvtList));
+					node->next = pdSelfDist->proxyListHead->next;
+					pdSelfDist->proxyListHead->next = node;
+					node->prev = pdSelfDist->proxyListHead;
+					node->next->prev = node;
+					node->type = 0;
+					node->location = edtLoc;
+					node->eventFatGuid = event;
+					hal_unlock32(&(pdSelfDist->lockResEvtList));
+					//TODO: handle deleting
+				}
+            }
+            else {
+            	printf("Here[%d] --IGNORE-- ocrAddSatisfier TYPE[%d] edt=%d  event=%d   edtKind=%d   eventKind=%d \n",
+            			(u32)self->myLocation , (u32)type, (u32)edtLoc  , (u32)eventLoc,
+						(u32)edtKind, (u32)eventKind);
             }
         }
 
