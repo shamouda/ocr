@@ -2261,12 +2261,12 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             self->guidProviders[0]->fcts.getKind(self->guidProviders[0], edt.guid, &edtKind);
             self->guidProviders[0]->fcts.getKind(self->guidProviders[0], event.guid, &eventKind);
 
-            if((eventKind & OCR_GUID_EVENT) && ( edtKind & OCR_GUID_EDT )) {
-				ocrLocation_t edtLoc = (ocrLocation_t) (int)0;
-				ocrLocation_t eventLoc = (ocrLocation_t) (int)0;
-				guidLocation(self, edt, &edtLoc);
-				guidLocation(self, event, &eventLoc);
+            ocrLocation_t edtLoc = (ocrLocation_t) (int)0;
+            ocrLocation_t eventLoc = (ocrLocation_t) (int)0;
+            guidLocation(self, edt, &edtLoc);
+            guidLocation(self, event, &eventLoc);
 
+            if((eventKind & OCR_GUID_EVENT) && ( edtKind & OCR_GUID_EDT )) {
 				printf("Here[%d] ocrAddSatisfier TYPE[%d] edt=%d  event=%d \n", (u32)self->myLocation , (u32)type, (u32)edtLoc  , (u32)eventLoc );
 				if (eventLoc == self->myLocation && edtLoc != self->myLocation) {
 					ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
