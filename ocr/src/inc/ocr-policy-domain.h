@@ -225,6 +225,8 @@ typedef struct _paramListPolicyDomainInst_t {
 /**< Removes a potential dynamic dependence */
 #define PD_MSG_DEP_DYNREMOVE    0x00088080
 
+#define PD_MSG_EVT_SAT_ADD      0x00089080
+
 /**< AND with this and if result non-null, low-level OS operation */
 #define PD_MSG_SAL_OP           0x100
 /**< Print operation */
@@ -892,6 +894,19 @@ typedef struct _ocrPolicyMsg_t {
         struct {
             union {
                 struct {
+					ocrFatGuid_t edt;     /**< In: Event satisfier */
+					ocrFatGuid_t event;   /**< In: Event */
+					ocrFatGuid_t currentEdt;  /**< In: EDT that is adding dep */
+				} in;
+				struct {
+					u32 returnDetail;    /**< Out: Success or error code */
+				} out;
+			} inOrOut __attribute__ (( aligned(8) ));
+		} PD_MSG_STRUCT_NAME(PD_MSG_EVT_SAT_ADD);
+
+        struct {
+            union {
+                struct {
                     ocrFatGuid_t signaler;  /**< In: Signaler to register */
                     ocrFatGuid_t dest;      /**< In: Object to register the signaler on */
                     u32 slot;               /**< In: Slot on dest to register the signaler on */
@@ -1352,6 +1367,28 @@ typedef struct _ocrPolicyDomainFcts_t {
      * @param addr Address to free
      */
     void (*pdFree)(struct _ocrPolicyDomain_t *self, void* addr);
+
+
+    /**
+     * @brief Updates the list of dead location at the policy domain
+     *
+     *
+     * @param[in] self          This policy-domain
+     * @param[in] locations     Unsorted array of dead locations
+     * @param[in] count      The number of dead locations
+     */
+    void (*updateDeadLocations)(struct _ocrPolicyDomain_t *self, ocrLocation_t* locations, u32 count);
+
+
+
+    /**
+     * @brief Checks if a location is dead
+     *
+     *
+     * @param[in] self          This policy-domain
+     * @param[in] location      The location that is checked for being dead
+     */
+    bool (*isLocationDead)(struct _ocrPolicyDomain_t *self, ocrLocation_t location);
 
 #ifdef OCR_ENABLE_STATISTICS
     ocrStats_t* (*getStats)(struct _ocrPolicyDomain_t *self);

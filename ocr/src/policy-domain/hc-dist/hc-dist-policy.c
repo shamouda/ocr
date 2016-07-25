@@ -136,6 +136,15 @@ static void setReturnDetail(ocrPolicyMsg_t * msg, u8 returnDetail) {
 #undef PD_TYPE
     break;
     }
+    case PD_MSG_EVT_SAT_ADD:
+    {
+#define PD_MSG (msg)
+#define PD_TYPE PD_MSG_EVT_SAT_ADD
+        PD_MSG_FIELD_O(returnDetail) = returnDetail;
+#undef PD_MSG
+#undef PD_TYPE
+    break;
+    }
     case PD_MSG_DEP_DYNADD:
     {
 #define PD_MSG (msg)
@@ -316,6 +325,18 @@ typedef struct {
     u64 count;
     ProxyTplNode_t * queueHead;
 } ProxyTpl_t;
+
+void printResilientEventsList(ocrPolicyDomainHcDist_t * dself) {
+	hal_lock32(&(dself->lockResEvtList));
+	ResEventNode_t *node = dself->proxyListHead->next;
+	u32 indx = 0;
+	while (node != dself->proxyListTail) {
+		printf("%d- loc[%d] evGuid["GUIDF"] type[%d] \n", indx, (u32)(node->location), GUIDA(node->eventFatGuid.guid), node->type);
+		node = node->next;
+		indx++;
+	}
+	hal_unlock32(&(dself->lockResEvtList));
+}
 
 static u8 registerRemoteMetaData(ocrPolicyDomain_t * pd, ocrFatGuid_t tplFatGuid) {
     ocrPolicyDomainHcDist_t * dself = (ocrPolicyDomainHcDist_t *) pd;
@@ -1185,7 +1206,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             u32 oldAckValue = hal_xadd32(&rself->shutdownAckCount, 1);
             ocrPolicyDomainHc_t * bself = (ocrPolicyDomainHc_t *) self;
             DPRINTF(DEBUG_LVL_VVERB,"PD_MSG_MGT_RL_NOTIFY: incoming: old value for shutdownAckCount=%"PRIu32"\n", oldAckValue);
-            if (oldAckValue == (self->neighborCount)) {
+            if (oldAckValue == (self->neighborCount - rself->deadLocationsCount)) {
                 // Got messages from all PDs and self.
                 // Done with distributed shutdown and can continue with the local shutdown.
                 PD_MSG_STACK(msgNotifyRl);
@@ -1258,6 +1279,9 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
                 // Fall-through to local processing
             }
             if ((msg->srcLocation == curLoc) && (msg->destLocation != curLoc)) {
+            	if (self->fcts.isLocationDead(self, msg->destLocation)) {
+            		return OCR_ACQ_DEST_DEAD;
+            	}
                 if (msg->type & PD_MSG_LOCAL_PROCESS) { //BUG #162 - This is a workaround until metadata cloning
                     DPRINTF(DEBUG_LVL_VVERB,"DB_ACQUIRE local processing: DB GUID "GUIDF"\n", GUIDA(PD_MSG_FIELD_IO(guid.guid)));
                     PROCESS_MESSAGE_WITH_PROXY_DB_AND_RETURN
@@ -1671,6 +1695,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
     }
     // filter out local messages
     case PD_MSG_DEP_ADD:
+    case PD_MSG_EVT_SAT_ADD:
     case PD_MSG_MEM_OP:
     case PD_MSG_MEM_ALLOC:
     case PD_MSG_MEM_UNALLOC:
@@ -1763,6 +1788,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             // Wait on the response handle for the communication to complete.
             DPRINTF(DEBUG_LVL_VVERB,"Waiting for reply from %"PRId32"\n", (u32)msg->destLocation);
             self->fcts.waitMessage(self, &handle);
+            //FIXME: ULFM Note - what if the source dies???? we should not wait forever here!!!
             DPRINTF(DEBUG_LVL_VVERB,"Received reply from %"PRId32" for original message @ %p\n",
                     (u32)msg->destLocation, originalMsg);
             ASSERT(handle->response != NULL);
@@ -2130,6 +2156,122 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             }
         }
 
+        //ULFM -> remote dependency detected -> add extra dependency on a proxy event
+        if ((msg->type & PD_MSG_TYPE_ONLY) == PD_MSG_DEP_ADD) {
+			#define PD_MSG msg
+			#define PD_TYPE PD_MSG_DEP_ADD
+            ocrFatGuid_t src = PD_MSG_FIELD_I(source);
+            ocrFatGuid_t dest = PD_MSG_FIELD_I(dest);
+            u32 slot = PD_MSG_FIELD_I(slot);
+            ocrFatGuid_t currentEdt = PD_MSG_FIELD_I(currentEdt);
+            u16 props = PD_MSG_FIELD_IO(properties);
+            #undef PD_MSG
+            #undef PD_TYPE
+
+            ocrLocation_t srcLoc = (ocrLocation_t) (int)0;
+            ocrLocation_t dstLoc = (ocrLocation_t) (int)0;
+            guidLocation(self, src, &srcLoc);
+            guidLocation(self, dest, &dstLoc);
+
+            //printf("Here[%d] ocrAddDependence  src=%d  dest=%d \n", (u32)self->myLocation , (u32)srcLoc  , (u32)dstLoc );
+            if (srcLoc != self->myLocation) {
+            	//create a local event that is fired in place of a lost event at a remote place
+            	PD_MSG_STACK(msg2);
+            	getCurrentEnv(NULL, NULL, NULL, &msg2);
+                #define PD_MSG (&msg2)
+                #define PD_TYPE PD_MSG_EVT_CREATE
+            	    msg2.type = PD_MSG_EVT_CREATE | PD_MSG_REQUEST | PD_MSG_REQ_RESPONSE;
+            	    //<start> record the event-location mapping
+            	    ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
+            	    hal_lock32(&(pdSelfDist->lockResEvtList));
+            	    node->next = pdSelfDist->proxyListHead->next;
+            	    pdSelfDist->proxyListHead->next = node;
+            	    node->prev = pdSelfDist->proxyListHead;
+            	    node->next->prev = node;
+            	    hal_unlock32(&(pdSelfDist->lockResEvtList));
+            	    //<end> record the event-location mapping
+
+            	    PD_MSG_FIELD_IO(guid.guid) = NULL_GUID;
+            	    PD_MSG_FIELD_IO(guid.metaDataPtr) = NULL;
+            	    PD_MSG_FIELD_I(currentEdt) = currentEdt;
+
+            	    #ifdef ENABLE_EXTENSION_PARAMS_EVT
+            	        ocrEventParams_t proxyParams;
+            	        proxyParams.EVENT_PROXY.proxyEvtPtr = node;
+            	        proxyParams.EVENT_PROXY.lockProxyListPtr = &(pdSelfDist->lockResEvtList);
+            	        PD_MSG_FIELD_I(params) = &proxyParams;
+            	    #endif
+
+            	    PD_MSG_FIELD_I(properties) = EVT_PROP_ULFM_PROXY; //special resilience property
+            	    PD_MSG_FIELD_I(type) = OCR_EVENT_ONCE_T;
+            	    RESULT_PROPAGATE(self->fcts.processMessage(self, &msg2, true));
+
+            	    ocrFatGuid_t proxyResEventGuid = PD_MSG_FIELD_IO(guid);
+
+                    hal_lock32(&pdSelfDist->lockResEvtList);
+                    node->type = 1;
+            	    node->location = srcLoc;
+            	    node->eventFatGuid = proxyResEventGuid;
+            	    hal_unlock32(&pdSelfDist->lockResEvtList);
+            	    //printf("Here[%d]============Adding proxy event pointer  srcLoc[%d]\n", (u32)self->myLocation, (u32) srcLoc);
+            	    //printResilientEventsList(pdSelfDist);
+            	#undef PD_TYPE
+            	#undef PD_MSG
+
+                PD_MSG_STACK(msg3);
+                getCurrentEnv(NULL, NULL, NULL, &msg3);
+        		#define PD_MSG (&msg3)
+        		#define PD_TYPE PD_MSG_DEP_ADD
+                    msg3.type = PD_MSG_DEP_ADD | PD_MSG_REQUEST;
+                    PD_MSG_FIELD_I(source) = proxyResEventGuid;
+                    PD_MSG_FIELD_I(dest) = dest;
+                    PD_MSG_FIELD_I(slot) = slot;
+                    PD_MSG_FIELD_IO(properties) = props;
+                    PD_MSG_FIELD_I(currentEdt) = currentEdt;
+                    RESULT_PROPAGATE(pdSelfDist->baseProcessMessage(self, &msg3, true));
+                #undef PD_MSG
+                #undef PD_TYPE
+
+                //ULFM update original msg
+                #define PD_MSG msg
+			    #define PD_TYPE PD_MSG_DEP_ADD
+                    PD_MSG_FIELD_I(dest) = proxyResEventGuid;
+                    PD_MSG_FIELD_I(slot) = 0;
+ 			    #undef PD_MSG
+                #undef PD_TYPE
+
+            }
+        }
+        else if ((msg->type & PD_MSG_TYPE_ONLY) == PD_MSG_EVT_SAT_ADD) {
+            #define PD_MSG msg
+			#define PD_TYPE PD_MSG_EVT_SAT_ADD
+            ocrFatGuid_t edt = PD_MSG_FIELD_I(edt);
+            ocrFatGuid_t event = PD_MSG_FIELD_I(event);
+            #undef PD_MSG
+            #undef PD_TYPE
+            //is the satisfier remote?
+
+            ocrLocation_t edtLoc = (ocrLocation_t) (int)0;
+            ocrLocation_t eventLoc = (ocrLocation_t) (int)0;
+            guidLocation(self, edt, &edtLoc);
+            guidLocation(self, event, &eventLoc);
+
+            //printf("Here[%d] ocrAddSatisfier  edt=%d  event=%d \n", (u32)self->myLocation , (u32)edtLoc  , (u32)eventLoc );
+            if (eventLoc == self->myLocation && edtLoc != self->myLocation) {
+            	ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
+            	hal_lock32(&(pdSelfDist->lockResEvtList));
+            	node->next = pdSelfDist->proxyListHead->next;
+            	pdSelfDist->proxyListHead->next = node;
+            	node->prev = pdSelfDist->proxyListHead;
+            	node->next->prev = node;
+            	node->type = 0;
+            	node->location = edtLoc;
+            	node->eventFatGuid = event;
+            	hal_unlock32(&(pdSelfDist->lockResEvtList));
+            	//TODO: handle deleting
+            }
+        }
+
         // NOTE: It is important to ensure the base processMessage call doesn't
         // store any pointers read from the request message
         ret = pdSelfDist->baseProcessMessage(self, msg, isBlocking);
@@ -2283,20 +2425,22 @@ u8 hcDistPdSwitchRunlevel(ocrPolicyDomain_t *self, ocrRunlevel_t runlevel, u32 p
         getCurrentEnv(&self, NULL, NULL, NULL);
         u32 i = 0;
         while(i < self->neighborCount) {
-            DPRINTF(DEBUG_LVL_VVERB,"PD_MSG_MGT_RL_NOTIFY: loop shutdown neighbors[%"PRId32"] is %"PRId32"\n", i, (u32) self->neighbors[i]);
-            PD_MSG_STACK(msgShutdown);
-            getCurrentEnv(NULL, NULL, NULL, &msgShutdown);
-        #define PD_MSG (&msgShutdown)
-        #define PD_TYPE PD_MSG_MGT_RL_NOTIFY
-            msgShutdown.destLocation = self->neighbors[i];
-            msgShutdown.type = PD_MSG_MGT_RL_NOTIFY | PD_MSG_REQUEST;
-            PD_MSG_FIELD_I(runlevel) = RL_COMPUTE_OK;
-            PD_MSG_FIELD_I(properties) = RL_REQUEST | RL_BARRIER | RL_TEAR_DOWN;
-            PD_MSG_FIELD_I(errorCode) = self->shutdownCode;
-            DPRINTF(DEBUG_LVL_VVERB,"PD_MSG_MGT_RL_NOTIFY: send shutdown msg to %"PRId32"\n", (u32) msgShutdown.destLocation);
-            RESULT_ASSERT(self->fcts.processMessage(self, &msgShutdown, true), ==, 0);
-        #undef PD_MSG
-        #undef PD_TYPE
+            if (!self->fcts.isLocationDead(self, self->neighbors[i])){
+                DPRINTF(DEBUG_LVL_VVERB,"PD_MSG_MGT_RL_NOTIFY: loop shutdown neighbors[%"PRId32"] is %"PRId32"\n", i, (u32) self->neighbors[i]);
+                PD_MSG_STACK(msgShutdown);
+                getCurrentEnv(NULL, NULL, NULL, &msgShutdown);
+            #define PD_MSG (&msgShutdown)
+            #define PD_TYPE PD_MSG_MGT_RL_NOTIFY
+                msgShutdown.destLocation = self->neighbors[i];
+                msgShutdown.type = PD_MSG_MGT_RL_NOTIFY | PD_MSG_REQUEST;
+                PD_MSG_FIELD_I(runlevel) = RL_COMPUTE_OK;
+                PD_MSG_FIELD_I(properties) = RL_REQUEST | RL_BARRIER | RL_TEAR_DOWN;
+                PD_MSG_FIELD_I(errorCode) = self->shutdownCode;
+                DPRINTF(DEBUG_LVL_VVERB,"PD_MSG_MGT_RL_NOTIFY: send shutdown msg to %"PRId32"\n", (u32) msgShutdown.destLocation);
+                RESULT_ASSERT(self->fcts.processMessage(self, &msgShutdown, true), ==, 0);
+            #undef PD_MSG
+            #undef PD_TYPE
+            }
             i++;
         }
         // Consider the PD to have reached its local quiescence.
@@ -2305,7 +2449,7 @@ u8 hcDistPdSwitchRunlevel(ocrPolicyDomain_t *self, ocrRunlevel_t runlevel, u32 p
         ocrPolicyDomainHcDist_t * dself = (ocrPolicyDomainHcDist_t *) self;
         // incr the shutdown counter (compete with processMessage PD_MSG_MGT_RL_NOTIFY)
         u32 oldAckValue = hal_xadd32(&dself->shutdownAckCount, 1);
-        if (oldAckValue != (self->neighborCount)) {
+        if (oldAckValue != (self->neighborCount - dself->deadLocationsCount )) {
             DPRINTF(DEBUG_LVL_VVERB,"PD_MSG_MGT_RL_NOTIFY: reached local quiescence. To be resumed when distributed shutdown is done\n");
             // If it is not the last one to increment do not fall-through
             // The switch runlevel will be called whenever we get the last
@@ -2322,6 +2466,15 @@ u8 hcDistPdSwitchRunlevel(ocrPolicyDomain_t *self, ocrRunlevel_t runlevel, u32 p
         if (properties & RL_BRING_UP) {
             if (runlevel == RL_GUID_OK) {
                 dself->proxyTplMap = newHashtableModulo(self, 10);
+
+                //ULFM resilience
+                ResEventNode_t * dummyHead = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
+                ResEventNode_t * dummyTail = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
+                dummyHead->prev = dummyTail->next = NULL;
+                dummyHead->next = dummyTail;
+                dummyTail->prev = dummyHead;
+                dself->proxyListHead = dummyHead;
+				dself->proxyListTail = dummyTail;
             }
             if (runlevel == RL_CONFIG_PARSE) {
                 // In distributed the shutdown protocol requires three phases
@@ -2338,6 +2491,17 @@ u8 hcDistPdSwitchRunlevel(ocrPolicyDomain_t *self, ocrRunlevel_t runlevel, u32 p
                 // The template map should be empty. Do not check, because this
                 // data-structure should go away with #536 GUID metadata
                 destructHashtable(dself->proxyTplMap, NULL, NULL);
+
+                //ULFM resilience
+                ResEventNode_t *cur = dself->proxyListHead->next;
+                while (cur != dself->proxyListTail) {
+                	ResEventNode_t *del = cur;
+                	cur = cur->next;
+                	self->fcts.pdFree(self, del);
+                }
+				self->fcts.pdFree(self, dself->proxyListHead);
+				self->fcts.pdFree(self, dself->proxyListTail);
+
             }
 
         }
@@ -2380,6 +2544,74 @@ u8 hcDistPdWaitMessage(ocrPolicyDomain_t *self,  ocrMsgHandle_t **handle) {
     u32 id = worker->id;
     u8 ret = self->commApis[id]->fcts.waitMessage(self->commApis[id], handle);
     return ret;
+}
+
+void hcDistUpdateDeadLocations(ocrPolicyDomain_t *self,  ocrLocation_t* locations, u32 count) {
+	ocrPolicyDomainHcDist_t * dself = (ocrPolicyDomainHcDist_t *) self;
+	/*
+	int m = 0;
+	while (m < count) {
+         printf("Here[%d] policy domain notified with dead location (%d) ...\n", (u32)self->myLocation, (u32)locations[m]);
+         m++;
+	}
+	*/
+    ////printResilientEventsList(dself);
+    //FIXMEULFM  -> deallocate deadLocations before writing the new array
+    dself->deadLocations = locations;
+    dself->deadLocationsCount = count;
+
+    hal_lock32(&dself->lockResEvtList);
+    ResEventNode_t *node = dself->proxyListHead->next;
+    while (node != dself->proxyListTail) {
+    	//printf("Here[%d] check guid  ["GUIDF"]  location [%d] \n", (u32)self->myLocation,
+    	//		GUIDA(node->eventFatGuid.guid), (u32)(node->location));
+        u32 locIndx = 0;
+        while (locIndx < count) {
+        	if ((u32)(locations[locIndx]) == (u32)(node->location)) {
+                PD_MSG_STACK(msg);
+                ocrTask_t * curEdt = NULL;
+                getCurrentEnv(NULL, NULL, &curEdt, &msg);
+            	#define PD_MSG (&msg)
+            	#define PD_TYPE PD_MSG_DEP_SATISFY
+                	msg.type = PD_MSG_DEP_SATISFY | PD_MSG_REQUEST;
+                    PD_MSG_FIELD_I(satisfierGuid.guid) = curEdt?curEdt->guid:NULL_GUID;
+                    PD_MSG_FIELD_I(satisfierGuid.metaDataPtr) = curEdt;
+                	PD_MSG_FIELD_I(guid) = node->eventFatGuid;
+                	PD_MSG_FIELD_I(payload.guid) = FAILURE_GUID; /*satisfy the event with a failure GUID*/
+                	PD_MSG_FIELD_I(payload.metaDataPtr) = NULL;
+                    PD_MSG_FIELD_I(currentEdt.guid) = curEdt ? curEdt->guid : NULL_GUID;
+                    PD_MSG_FIELD_I(currentEdt.metaDataPtr) = curEdt;
+                	PD_MSG_FIELD_I(slot) = 0;
+                	PD_MSG_FIELD_I(properties) = 0;
+                	//is this sync or async????
+                	hal_unlock32(&dself->lockResEvtList);
+                	self->fcts.processMessage(self, &msg, false);
+                	hal_lock32(&dself->lockResEvtList);
+            	#undef PD_MSG
+            	#undef PD_TYPE
+
+                //printf("@@@@satisfy proxy event  ["GUIDF"] with FAILURE_GUID \n", GUIDA(node->eventFatGuid.guid));
+                break;
+        	}
+        	locIndx++;
+        }
+        node = node -> next;
+    }
+    hal_unlock32(&dself->lockResEvtList);
+}
+
+bool hcDistIsLocationDead(ocrPolicyDomain_t *self,  ocrLocation_t location) {
+	ocrPolicyDomainHcDist_t * dself = (ocrPolicyDomainHcDist_t *) self;
+    int i = 0;
+    bool isDead = false;
+    while (i < dself->deadLocationsCount) {
+        if (location == dself->deadLocations[i]) {
+        	isDead = true;
+        	break;
+        }
+    	i++;
+    }
+    return isDead;
 }
 
 u8 hcDistPdSendMessageMT(ocrPolicyDomain_t* self, pdEvent_t **inOutEvent,
@@ -2445,6 +2677,9 @@ void initializePolicyDomainHcDist(ocrPolicyDomainFactory_t * factory,
     hcDistPd->lockDbLookup = 0;
     hcDistPd->lockTplLookup = 0;
     hcDistPd->shutdownAckCount = 0;
+
+    //ULFM resilience
+    hcDistPd->lockResEvtList = 0;
 }
 
 static void destructPolicyDomainFactoryHcDist(ocrPolicyDomainFactory_t * factory) {
@@ -2478,6 +2713,10 @@ ocrPolicyDomainFactory_t * newPolicyDomainFactoryHcDist(ocrParamList_t *perType)
                                                             hcDistPdSendMessageMT);
     derivedBase->policyDomainFcts.pollMessageMT = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, pdEvent_t **, u32), hcDistPdPollMessageMT);
     derivedBase->policyDomainFcts.waitMessageMT = FUNC_ADDR(u8 (*)(ocrPolicyDomain_t*, pdEvent_t **, u32), hcDistPdWaitMessageMT);
+
+    //resilience
+    derivedBase->policyDomainFcts.updateDeadLocations = FUNC_ADDR(void (*)(ocrPolicyDomain_t*, ocrLocation_t*, u32), hcDistUpdateDeadLocations);
+    derivedBase->policyDomainFcts.isLocationDead = FUNC_ADDR(bool (*)(ocrPolicyDomain_t*, ocrLocation_t), hcDistIsLocationDead);
 
     baseFactory->destruct(baseFactory);
     return derivedBase;

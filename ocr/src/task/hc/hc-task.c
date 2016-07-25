@@ -388,7 +388,7 @@ static u8 iterateDbFrontier(ocrTask_t *self) {
         //ACQUIRE can be non-blocking so pre-increment the frontier
         //slot and adjust by -1 in dependenceResolvedTaskHc
         rself->frontierSlot++;
-        if (!(ocrGuidIsNull(depv[i].guid))) {
+        if (!(ocrGuidIsNull(depv[i].guid) || ocrGuidIsFailure(depv[i].guid) )) {
             // Because the frontier is sorted, we can check for duplicates here
             // and remember them to avoid double release
             if ((i > 0) && (ocrGuidIsEq(depv[i-1].guid, depv[i].guid))) {
@@ -418,9 +418,16 @@ static u8 iterateDbFrontier(ocrTask_t *self) {
                 if ((returnCode == OCR_EPEND) || (PD_MSG_FIELD_O(returnDetail) == OCR_EBUSY)) {
                     return true;
                 }
-                // else, acquire took place and was successful, continue iterating
-                ASSERT(msg.type & PD_MSG_RESPONSE); // 2x check
-                rself->resolvedDeps[depv[i].slot].ptr = PD_MSG_FIELD_O(ptr);
+                if (returnCode == OCR_ACQ_DEST_DEAD) {
+                	rself->resolvedDeps[i].guid = FAILURE_GUID;
+                	depv[i].guid = FAILURE_GUID;
+                	printf("depv[%d] dest is dead - replace it with a FAILURE_GUID ...\n", i);
+                }
+                else{
+                	// else, acquire took place and was successful, continue iterating
+                	ASSERT(msg.type & PD_MSG_RESPONSE); // 2x check
+                	rself->resolvedDeps[depv[i].slot].ptr = PD_MSG_FIELD_O(ptr);
+                }
 #undef PD_MSG
 #undef PD_TYPE
             }
@@ -1412,7 +1419,7 @@ u8 taskExecute(ocrTask_t* base) {
         if (base->state == RUNNING_EDTSTATE) {
             // Now deal with the output event
             if(!(ocrGuidIsNull(base->outputEvent))) {
-                if(!(ocrGuidIsNull(retGuid))) {
+                if(!(ocrGuidIsNull(retGuid) || ocrGuidIsFailure(retGuid))) {
                     getCurrentEnv(NULL, NULL, NULL, &msg);
 #define PD_MSG (&msg)
 #define PD_TYPE PD_MSG_DEP_ADD
