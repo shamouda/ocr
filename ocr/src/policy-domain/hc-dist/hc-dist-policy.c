@@ -2169,7 +2169,7 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             #undef PD_TYPE
 
             ocrGuidKind srcKind;
-            self->guidProviders[0]->fcts.getKind(self->guidProviders[0], src, &srcKind);
+            self->guidProviders[0]->fcts.getKind(self->guidProviders[0], src.guid, &srcKind);
 
             if(srcKind & OCR_GUID_EDT || srcKind & OCR_GUID_EVENT) {
 				ocrLocation_t srcLoc = (ocrLocation_t) (int)0;
