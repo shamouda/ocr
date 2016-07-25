@@ -2168,78 +2168,83 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             #undef PD_MSG
             #undef PD_TYPE
 
-            ocrLocation_t srcLoc = (ocrLocation_t) (int)0;
-            ocrLocation_t dstLoc = (ocrLocation_t) (int)0;
-            guidLocation(self, src, &srcLoc);
-            guidLocation(self, dest, &dstLoc);
+            ocrGuidKind srcKind;
+            self->guidProviders[0]->fcts.getKind(self->guidProviders[0], src, &srcKind);
 
-            //printf("Here[%d] ocrAddDependence  src=%d  dest=%d \n", (u32)self->myLocation , (u32)srcLoc  , (u32)dstLoc );
-            if (srcLoc != self->myLocation) {
-            	//create a local event that is fired in place of a lost event at a remote place
-            	PD_MSG_STACK(msg2);
-            	getCurrentEnv(NULL, NULL, NULL, &msg2);
-                #define PD_MSG (&msg2)
-                #define PD_TYPE PD_MSG_EVT_CREATE
-            	    msg2.type = PD_MSG_EVT_CREATE | PD_MSG_REQUEST | PD_MSG_REQ_RESPONSE;
-            	    //<start> record the event-location mapping
-            	    ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
-            	    hal_lock32(&(pdSelfDist->lockResEvtList));
-            	    node->next = pdSelfDist->proxyListHead->next;
-            	    pdSelfDist->proxyListHead->next = node;
-            	    node->prev = pdSelfDist->proxyListHead;
-            	    node->next->prev = node;
-            	    hal_unlock32(&(pdSelfDist->lockResEvtList));
-            	    //<end> record the event-location mapping
+            if(srcKind & OCR_GUID_EDT || srcKind & OCR_GUID_EVENT) {
+				ocrLocation_t srcLoc = (ocrLocation_t) (int)0;
+				ocrLocation_t dstLoc = (ocrLocation_t) (int)0;
+				guidLocation(self, src, &srcLoc);
+				guidLocation(self, dest, &dstLoc);
 
-            	    PD_MSG_FIELD_IO(guid.guid) = NULL_GUID;
-            	    PD_MSG_FIELD_IO(guid.metaDataPtr) = NULL;
-            	    PD_MSG_FIELD_I(currentEdt) = currentEdt;
+				//printf("Here[%d] ocrAddDependence  src=%d  dest=%d \n", (u32)self->myLocation , (u32)srcLoc  , (u32)dstLoc );
+				if (srcLoc != self->myLocation) {
+					//create a local event that is fired in place of a lost event at a remote place
+					PD_MSG_STACK(msg2);
+					getCurrentEnv(NULL, NULL, NULL, &msg2);
+					#define PD_MSG (&msg2)
+					#define PD_TYPE PD_MSG_EVT_CREATE
+						msg2.type = PD_MSG_EVT_CREATE | PD_MSG_REQUEST | PD_MSG_REQ_RESPONSE;
+						//<start> record the event-location mapping
+						ResEventNode_t * node = (ResEventNode_t *) self->fcts.pdMalloc(self, sizeof(ResEventNode_t));
+						hal_lock32(&(pdSelfDist->lockResEvtList));
+						node->next = pdSelfDist->proxyListHead->next;
+						pdSelfDist->proxyListHead->next = node;
+						node->prev = pdSelfDist->proxyListHead;
+						node->next->prev = node;
+						hal_unlock32(&(pdSelfDist->lockResEvtList));
+						//<end> record the event-location mapping
 
-            	    #ifdef ENABLE_EXTENSION_PARAMS_EVT
-            	        ocrEventParams_t proxyParams;
-            	        proxyParams.EVENT_PROXY.proxyEvtPtr = node;
-            	        proxyParams.EVENT_PROXY.lockProxyListPtr = &(pdSelfDist->lockResEvtList);
-            	        PD_MSG_FIELD_I(params) = &proxyParams;
-            	    #endif
+						PD_MSG_FIELD_IO(guid.guid) = NULL_GUID;
+						PD_MSG_FIELD_IO(guid.metaDataPtr) = NULL;
+						PD_MSG_FIELD_I(currentEdt) = currentEdt;
 
-            	    PD_MSG_FIELD_I(properties) = EVT_PROP_ULFM_PROXY; //special resilience property
-            	    PD_MSG_FIELD_I(type) = OCR_EVENT_ONCE_T;
-            	    RESULT_PROPAGATE(self->fcts.processMessage(self, &msg2, true));
+						#ifdef ENABLE_EXTENSION_PARAMS_EVT
+							ocrEventParams_t proxyParams;
+							proxyParams.EVENT_PROXY.proxyEvtPtr = node;
+							proxyParams.EVENT_PROXY.lockProxyListPtr = &(pdSelfDist->lockResEvtList);
+							PD_MSG_FIELD_I(params) = &proxyParams;
+						#endif
 
-            	    ocrFatGuid_t proxyResEventGuid = PD_MSG_FIELD_IO(guid);
+						PD_MSG_FIELD_I(properties) = EVT_PROP_ULFM_PROXY; //special resilience property
+						PD_MSG_FIELD_I(type) = OCR_EVENT_ONCE_T;
+						RESULT_PROPAGATE(self->fcts.processMessage(self, &msg2, true));
 
-                    hal_lock32(&pdSelfDist->lockResEvtList);
-                    node->type = 1;
-            	    node->location = srcLoc;
-            	    node->eventFatGuid = proxyResEventGuid;
-            	    hal_unlock32(&pdSelfDist->lockResEvtList);
-            	    //printf("Here[%d]============Adding proxy event pointer  srcLoc[%d]\n", (u32)self->myLocation, (u32) srcLoc);
-            	    //printResilientEventsList(pdSelfDist);
-            	#undef PD_TYPE
-            	#undef PD_MSG
+						ocrFatGuid_t proxyResEventGuid = PD_MSG_FIELD_IO(guid);
 
-                PD_MSG_STACK(msg3);
-                getCurrentEnv(NULL, NULL, NULL, &msg3);
-        		#define PD_MSG (&msg3)
-        		#define PD_TYPE PD_MSG_DEP_ADD
-                    msg3.type = PD_MSG_DEP_ADD | PD_MSG_REQUEST;
-                    PD_MSG_FIELD_I(source) = proxyResEventGuid;
-                    PD_MSG_FIELD_I(dest) = dest;
-                    PD_MSG_FIELD_I(slot) = slot;
-                    PD_MSG_FIELD_IO(properties) = props;
-                    PD_MSG_FIELD_I(currentEdt) = currentEdt;
-                    RESULT_PROPAGATE(pdSelfDist->baseProcessMessage(self, &msg3, true));
-                #undef PD_MSG
-                #undef PD_TYPE
+						hal_lock32(&pdSelfDist->lockResEvtList);
+						node->type = 1;
+						node->location = srcLoc;
+						node->eventFatGuid = proxyResEventGuid;
+						hal_unlock32(&pdSelfDist->lockResEvtList);
+						//printf("Here[%d]============Adding proxy event pointer  srcLoc[%d]\n", (u32)self->myLocation, (u32) srcLoc);
+						//printResilientEventsList(pdSelfDist);
+					#undef PD_TYPE
+					#undef PD_MSG
 
-                //ULFM update original msg
-                #define PD_MSG msg
-			    #define PD_TYPE PD_MSG_DEP_ADD
-                    PD_MSG_FIELD_I(dest) = proxyResEventGuid;
-                    PD_MSG_FIELD_I(slot) = 0;
- 			    #undef PD_MSG
-                #undef PD_TYPE
+					PD_MSG_STACK(msg3);
+					getCurrentEnv(NULL, NULL, NULL, &msg3);
+					#define PD_MSG (&msg3)
+					#define PD_TYPE PD_MSG_DEP_ADD
+						msg3.type = PD_MSG_DEP_ADD | PD_MSG_REQUEST;
+						PD_MSG_FIELD_I(source) = proxyResEventGuid;
+						PD_MSG_FIELD_I(dest) = dest;
+						PD_MSG_FIELD_I(slot) = slot;
+						PD_MSG_FIELD_IO(properties) = props;
+						PD_MSG_FIELD_I(currentEdt) = currentEdt;
+						RESULT_PROPAGATE(pdSelfDist->baseProcessMessage(self, &msg3, true));
+					#undef PD_MSG
+					#undef PD_TYPE
 
+					//ULFM update original msg
+					#define PD_MSG msg
+					#define PD_TYPE PD_MSG_DEP_ADD
+						PD_MSG_FIELD_I(dest) = proxyResEventGuid;
+						PD_MSG_FIELD_I(slot) = 0;
+					#undef PD_MSG
+					#undef PD_TYPE
+
+				}
             }
         }
         else if ((msg->type & PD_MSG_TYPE_ONLY) == PD_MSG_EVT_SAT_ADD) {
@@ -2549,13 +2554,13 @@ u8 hcDistPdWaitMessage(ocrPolicyDomain_t *self,  ocrMsgHandle_t **handle) {
 
 void hcDistUpdateDeadLocations(ocrPolicyDomain_t *self,  ocrLocation_t* locations, u32 count) {
 	ocrPolicyDomainHcDist_t * dself = (ocrPolicyDomainHcDist_t *) self;
-	/*
+
 	int m = 0;
 	while (m < count) {
          printf("Here[%d] policy domain notified with dead location (%d) ...\n", (u32)self->myLocation, (u32)locations[m]);
          m++;
 	}
-	*/
+
     printResilientEventsList(dself);
     //FIXMEULFM  -> deallocate deadLocations before writing the new array
     dself->deadLocations = locations;
