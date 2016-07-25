@@ -1511,7 +1511,6 @@ u8 hcDistProcessMessage(ocrPolicyDomain_t *self, ocrPolicyMsg_t *msg, u8 isBlock
             ProxyDb_t * proxyDb = getProxyDb(self, PD_MSG_FIELD_IO(guid.guid), false);
             if (proxyDb == NULL) {
                 // This is VERY likely an error in the user-code where the DB is released twice by the same EDT.
-                assert(false && "Why failure guid is deletec twice") ;
             	DPRINTF(DEBUG_LVL_WARN,"Detected multiple release for DB "GUIDF" by EDT "GUIDF"\n", GUIDA(PD_MSG_FIELD_IO(guid.guid)), GUIDA(PD_MSG_FIELD_I(edt.guid)));
                 msg->type &= ~PD_MSG_REQUEST;
                 msg->type &= ~PD_MSG_REQ_RESPONSE;
