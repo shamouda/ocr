@@ -214,7 +214,7 @@ static u8 verifyOutgoing(ocrCommPlatformMPI_t *mpiComm) {
         ASSERT (res == MPI_SUCCESS || isProcessFailureError(res));
         if (isProcessFailureError(res)) { // destination is dead; clean up current outgoing request
         	outgoingIt->removeCurrent(outgoingIt);
-        	pd->fcts.pdFree(pd, mpiHandle->msg);
+        	pd->fcts.pdFree(pd, ((mpiCommHandle_t*)mpiHandle)->msg);
         	pd->fcts.pdFree(pd, mpiHandle);
         	continue;
         }
@@ -866,7 +866,13 @@ u8 MPICommPollMessageInternal(ocrCommPlatform_t *self, ocrPolicyMsg_t **msg,
         ocrPolicyMsg_t * reqMsg = mpiHandle->msg;
         u8 res = probeIncoming(self, mpiHandle->base.src, (int) mpiHandle->base.msgId, &mpiHandle->msg, mpiHandle->msg->bufferSize);
         // The message is properly unmarshalled at this point
-        if (res == POLL_MORE_MESSAGE) {
+        if (res == POLL_PROCESS_FAILED) {
+        	pd->fcts.pdFree(pd, mpiHandle);
+            incomingIt->removeCurrent(incomingIt);
+        	//FIXME: do not hide the error here, propagate it up the stack
+    	    return POLL_NO_MESSAGE;
+    	}
+        else if (res == POLL_MORE_MESSAGE) {
 #ifdef OCR_ASSERT
             if (reqMsg != mpiHandle->msg) {
                 // Original request hasn't changed
