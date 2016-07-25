@@ -1,0 +1,135 @@
+4 numactl-2.0.9-2.el6.x86_64 pciutils-libs-3.1.10-4.el6.x86_64
+(gdb) info threads
+  6 Thread 0x7f77387cf700 (LWP 7093)  0x00007f773d2ef523 in select
+    () from /lib64/libc.so.6
+  5 Thread 0x7f7733b9d700 (LWP 7099)  0x00007f773d2ed283 in poll ()
+   from /lib64/libc.so.6
+  4 Thread 0x7f772ab54700 (LWP 7107)  0x00007f773eb42dd1 in hcDistProcessMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:1734
+  3 Thread 0x7f772a353700 (LWP 7111)  0x00007f773eb07680 in wstDequeSize ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+  2 Thread 0x7f7729b52700 (LWP 7113)  0x00007f773eb215a0 in commonSchedulerGetWorkInvoke ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+* 1 Thread 0x7f773ef7b700 (LWP 7085)  0x00007f773d2dd437 in sched_yield () from /lib64/libc.so.6
+(gdb) thread apply all st
+
+Thread 6 (Thread 0x7f77387cf700 (LWP 7093)):
+Ambiguous command "st": stack, start, status, step, stepi, stepping, stop, strace.
+(gdb) thread apply all bt
+
+Thread 6 (Thread 0x7f77387cf700 (LWP 7093)):
+#0  0x00007f773d2ef523 in select () from /lib64/libc.so.6
+#1  0x00007f7739f6336f in service_thread_start (context=0x0)
+    at btl_openib_fd.c:428
+#2  0x00007f773e8d4aa1 in start_thread ()
+   from /lib64/libpthread.so.0
+#3  0x00007f773d2f6aad in clone () from /lib64/libc.so.6
+
+Thread 5 (Thread 0x7f7733b9d700 (LWP 7099)):
+#0  0x00007f773d2ed283 in poll () from /lib64/libc.so.6
+#1  0x00007f7739f611c1 in btl_openib_async_thread (async=0x0)
+    at btl_openib_async.c:419
+#2  0x00007f773e8d4aa1 in start_thread ()
+   from /lib64/libpthread.so.0
+#3  0x00007f773d2f6aad in clone () from /lib64/libc.so.6
+
+Thread 4 (Thread 0x7f772ab54700 (LWP 7107)):
+#0  0x00007f773eb42dd1 in hcDistProcessMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:1734
+#1  0x00007f773eb0250f in hcWorkShift ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#2  0x00007f773eb026db in workerLoop ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#3  0x00007f773eb02a8f in hcRunWorker ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#4  0x00007f773e8d4aa1 in start_thread ()
+   from /lib64/libpthread.so.0
+#5  0x00007f773d2f6aad in clone () from /lib64/libc.so.6
+
+Thread 3 (Thread 0x7f772a353700 (LWP 7111)):
+#0  0x00007f773eb07680 in wstDequeSize ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#1  0x00007f773eb2b573 in deqSchedulerObjectCount ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#2  0x00007f773eb2d084 in wstSchedulerObjectCount ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/scheduler-object/wst/wst-scheduler-object.c:173
+---Type <return> to continue, or q <return> to quit---
+#3  0x00007f773eb14d66 in hcSchedulerHeuristicGetWorkInvoke ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#4  0x00007f773eb3ed9c in hcPolicyDomainProcessMessage ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#5  0x00007f773eb42c0c in hcDistProcessMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:2277
+#6  0x00007f773eb0250f in hcWorkShift ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#7  0x00007f773eb026db in workerLoop ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#8  0x00007f773eb02a8f in hcRunWorker ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#9  0x00007f773e8d4aa1 in start_thread ()
+   from /lib64/libpthread.so.0
+#10 0x00007f773d2f6aad in clone () from /lib64/libc.so.6
+
+Thread 2 (Thread 0x7f7729b52700 (LWP 7113)):
+#0  0x00007f773eb215a0 in commonSchedulerGetWorkInvoke ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#1  0x00007f773eb3ed9c in hcPolicyDomainProcessMessage ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#2  0x00007f773eb42c0c in hcDistProcessMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:2277
+#3  0x00007f773eb4d288 in delegateCommPollMessage ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#4  0x00007f773eb4d173 in delegateCommWaitMessage ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#5  0x00007f773eb41428 in hcDistPdWaitMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:2545
+#6  0x00007f773eb43073 in hcDistProcessMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:1790
+---Type <return> to continue, or q <return> to quit---
+#7  0x00007f773eb341cf in taskExecute ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#8  0x00007f773eb02553 in hcWorkShift ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#9  0x00007f773eb026db in workerLoop ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#10 0x00007f773eb02a8f in hcRunWorker ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#11 0x00007f773e8d4aa1 in start_thread ()
+   from /lib64/libpthread.so.0
+#12 0x00007f773d2f6aad in clone () from /lib64/libc.so.6
+
+Thread 1 (Thread 0x7f773ef7b700 (LWP 7085)):
+#0  0x00007f773d2dd437 in sched_yield () from /lib64/libc.so.6
+#1  0x00007f773e60ded5 in opal_progress ()
+    at runtime/opal_progress.c:220
+#2  0x00007f773a38b193 in mca_pml_ob1_iprobe (src=-1, tag=0,
+    comm=0x7f773e8b8be0, matched=0x7ffe42a63a68,
+    status=0x7ffe42a63a80) at pml_ob1_iprobe.c:51
+#3  0x00007f773e508e51 in PMPI_Iprobe (source=-1, tag=0,
+    comm=0x7f773e8b8be0, flag=0x7ffe42a63a68, status=0x7ffe42a63a80)
+    at piprobe.c:95
+#4  0x00007f773eb4bc5e in probeIncoming ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#5  0x00007f773eb4bfc5 in MPICommPollMessageInternal ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#6  0x00007f773eb4c16b in MPICommPollMessage ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#7  0x00007f773eb4cabc in pollMessageSimpleCommApi ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#8  0x00007f773eb413e8 in hcDistPdPollMessage ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:2534
+#9  0x00007f773eb049e2 in workerLoopHcCommInternal ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+---Type <return> to continue, or q <return> to quit---
+#10 0x00007f773eb03f96 in workerLoopHcComm ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#11 0x00007f773eb04608 in hcCommWorkerSwitchRunlevel ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#12 0x00007f773eb3dbc0 in hcPdSwitchRunlevel ()
+   from /home/659/ssh659/rice/xstg/ocr/ocr/install/lib/libocr_x86-mpi.so
+#13 0x00007f773eb41dbb in hcDistPdSwitchRunlevel ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/policy-domain/hc-dist/hc-dist-policy.c:2465
+#14 0x00007f773eb1f5d5 in main ()
+    at /home/659/ssh659/rice/xstg/ocr/ocr/src/driver/ocr-driver.c:958
+#15 0x00007f773d22cd1d in __libc_start_main () from /lib64/libc.so.6
+#16 0x0000000000401075 in _start ()
