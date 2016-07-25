@@ -2556,7 +2556,7 @@ void hcDistUpdateDeadLocations(ocrPolicyDomain_t *self,  ocrLocation_t* location
          m++;
 	}
 	*/
-    ////printResilientEventsList(dself);
+    printResilientEventsList(dself);
     //FIXMEULFM  -> deallocate deadLocations before writing the new array
     dself->deadLocations = locations;
     dself->deadLocationsCount = count;
@@ -2591,7 +2591,7 @@ void hcDistUpdateDeadLocations(ocrPolicyDomain_t *self,  ocrLocation_t* location
             	#undef PD_MSG
             	#undef PD_TYPE
 
-                //printf("@@@@satisfy proxy event  ["GUIDF"] with FAILURE_GUID \n", GUIDA(node->eventFatGuid.guid));
+                printf("@@@@satisfy proxy event  ["GUIDF"] with FAILURE_GUID \n", GUIDA(node->eventFatGuid.guid));
                 break;
         	}
         	locIndx++;
